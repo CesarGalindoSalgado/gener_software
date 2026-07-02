@@ -7,7 +7,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
   server: {
-    // Respeta el puerto asignado por el entorno (preview) si viene en PORT.
+    // host: true expone el server en la red local (0.0.0.0) para verlo desde
+    // otra computadora. Respeta PORT si el entorno (preview) lo asigna.
+    host: true,
     port: process.env.PORT ? Number(process.env.PORT) : 5173,
   },
   resolve: {
