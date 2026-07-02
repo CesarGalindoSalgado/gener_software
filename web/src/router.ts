@@ -19,6 +19,11 @@ const router = createRouter({
           name: 'cotizaciones',
           component: () => import('./vistas/Cotizaciones.vue'),
         },
+        {
+          path: 'taller',
+          name: 'taller',
+          component: () => import('./vistas/Taller.vue'),
+        },
       ],
     },
   ],

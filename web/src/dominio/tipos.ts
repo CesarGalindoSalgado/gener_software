@@ -22,3 +22,31 @@ export interface Usuario {
   activo: boolean;
   telefono?: string;
 }
+
+// El precio vive en la partida (bloque); las líneas son alcance sin precio.
+export interface Partida {
+  titulo: string;
+  descripcion?: string;
+  lineas: string[];
+  cantidad: number;
+  importe: number;
+}
+
+export interface DatosCliente {
+  nombre: string;
+  atencion?: string;
+  telefono?: string;
+  correo?: string;
+}
+
+// Borrador de una cotización tal como se edita/renderiza en el taller.
+export interface BorradorCotizacion {
+  cliente: DatosCliente;
+  asunto: string;
+  folio: string | null; // null hasta aprobar
+  rev: string; // "A", "B", ...
+  fecha: string; // ISO
+  partidas: Partida[];
+  formaPago: string;
+  tiempoEntrega: string;
+}
