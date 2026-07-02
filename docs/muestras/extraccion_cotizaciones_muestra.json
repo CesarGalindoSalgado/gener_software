@@ -1,0 +1,221 @@
+[
+  {
+    "folio": "GPC-0326-005",
+    "fecha": "2026-03-05",
+    "cliente": {
+      "nombre": "Jardines México",
+      "atencion": null,
+      "telefono": null,
+      "correo": null
+    },
+    "asunto": "Mantenimiento preventivo básico a grupo electrógeno estacionario",
+    "partidas": [
+      {
+        "titulo": "Mantenimiento preventivo básico a grupo electrógeno estacionario (Mca. Cummins)",
+        "descripcion": "Incluye maquinaria, herramienta, mano de obra y lo necesario para las actividades.",
+        "lineas": [
+          "Suministro y cambio de aceite, filtros (aceite/combustible/aire) y anticongelante",
+          "Limpieza general y reapriete de conexiones",
+          "Pruebas con/sin carga y aislamiento con Megger"
+        ],
+        "cantidad": 1,
+        "importe": 16437.0
+      }
+    ],
+    "subtotal": 16437.0,
+    "iva": 2629.92,
+    "total": 19066.92,
+    "formaPago": "70% anticipo / 30% entrega",
+    "tiempoEntrega": "1 a 2 días hábiles",
+    "anio": 2026,
+    "estatus": "importada",
+    "origen": "pdf",
+    "_validacion": {
+      "suma_partidas_ok": true,
+      "iva_16_ok": true,
+      "total_ok": true
+    }
+  },
+  {
+    "folio": "GPC-0326-007",
+    "fecha": "2026-03-09",
+    "cliente": {
+      "nombre": "Manuel Palma",
+      "atencion": null,
+      "telefono": "7771331491",
+      "correo": null
+    },
+    "asunto": "Mantenimiento correctivo Bronco 3700",
+    "partidas": [
+      {
+        "titulo": "Mantenimiento correctivo Bronco 3700",
+        "descripcion": "Incluye maquinaria, herramienta, mano de obra y lo necesario.",
+        "lineas": [
+          "Carburador nuevo",
+          "Cambio de varilla balancín",
+          "Asentamiento de válvulas"
+        ],
+        "cantidad": 1,
+        "importe": 3800.0
+      }
+    ],
+    "subtotal": 3800.0,
+    "iva": 608.0,
+    "total": 4408.0,
+    "formaPago": "70% anticipo / 30% entrega",
+    "tiempoEntrega": "4 a 5 días hábiles",
+    "anio": 2026,
+    "estatus": "importada",
+    "origen": "pdf",
+    "_validacion": {
+      "suma_partidas_ok": true,
+      "iva_16_ok": true,
+      "total_ok": true
+    }
+  },
+  {
+    "folio": "GPC-0725-016",
+    "fecha": "2025-07-17",
+    "cliente": {
+      "nombre": "A quien corresponda",
+      "atencion": null,
+      "telefono": null,
+      "correo": null
+    },
+    "asunto": "Mantenimiento correctivo a motor 3 HP",
+    "partidas": [
+      {
+        "titulo": "Mantenimiento correctivo a motor 3 HP",
+        "descripcion": "Incluye maquinaria, herramienta, mano de obra y lo necesario.",
+        "lineas": [
+          "Desembobinado y embobinado de motor",
+          "Cambio y colocación de rodamientos nuevos",
+          "Limpieza general, pruebas de aislamiento y operación, pintura"
+        ],
+        "cantidad": 1,
+        "importe": 4800.0
+      }
+    ],
+    "subtotal": 4800.0,
+    "iva": 768.0,
+    "total": 5568.0,
+    "formaPago": "70% anticipo / 30% entrega",
+    "tiempoEntrega": "Según disponibilidad de refacciones",
+    "anio": 2025,
+    "estatus": "importada",
+    "origen": "pdf",
+    "_validacion": {
+      "suma_partidas_ok": true,
+      "iva_16_ok": true,
+      "total_ok": true
+    }
+  },
+  {
+    "folio": "GPC-0725-019",
+    "fecha": "2025-07-29",
+    "cliente": {
+      "nombre": "A quien corresponda",
+      "atencion": null,
+      "telefono": null,
+      "correo": null
+    },
+    "asunto": "Mantenimiento correctivo a soldadora Linde",
+    "partidas": [
+      {
+        "titulo": "Mantenimiento a placas de diodos, bobinas y transformadores",
+        "descripcion": null,
+        "lineas": [],
+        "cantidad": 1,
+        "importe": 1200.0
+      },
+      {
+        "titulo": "Conexión de soldadora con transformador suministrado (220 V)",
+        "descripcion": null,
+        "lineas": [],
+        "cantidad": 1,
+        "importe": 1200.0
+      },
+      {
+        "titulo": "Cambio de terminales y puesta de conectores rectos",
+        "descripcion": null,
+        "lineas": [],
+        "cantidad": 1,
+        "importe": 150.0
+      },
+      {
+        "titulo": "Capacitor de trabajo 4 UF",
+        "descripcion": null,
+        "lineas": [],
+        "cantidad": 1,
+        "importe": 800.0
+      },
+      {
+        "titulo": "Mantenimiento a módulo de microalambre",
+        "descripcion": null,
+        "lineas": [],
+        "cantidad": 1,
+        "importe": 500.0
+      }
+    ],
+    "subtotal": 3850.0,
+    "iva": 616.0,
+    "total": 4466.0,
+    "formaPago": "70% anticipo / 30% entrega",
+    "tiempoEntrega": "Según disponibilidad de refacciones",
+    "anio": 2025,
+    "estatus": "importada",
+    "origen": "pdf",
+    "_validacion": {
+      "suma_partidas_ok": true,
+      "iva_16_ok": true,
+      "total_ok": true
+    }
+  },
+  {
+    "folio": "GPC-0126-003",
+    "fecha": "2026-01-27",
+    "cliente": {
+      "nombre": "Reka",
+      "atencion": null,
+      "telefono": null,
+      "correo": null
+    },
+    "asunto": "Mantenimiento preventivo correctivo a grupo electrógeno",
+    "partidas": [
+      {
+        "titulo": "Reemplazo de cargador de baterías",
+        "descripcion": "Suministro, instalación y pruebas (Mca. DSE Electronics).",
+        "lineas": [],
+        "cantidad": 1,
+        "importe": 6800.0
+      },
+      {
+        "titulo": "Mantenimiento preventivo grupo electrógeno 130 kW",
+        "descripcion": "Filtros, aceite y anticongelante según ficha técnica; pruebas con/sin carga.",
+        "lineas": [],
+        "cantidad": 1,
+        "importe": 13630.0
+      },
+      {
+        "titulo": "Reprogramación de horómetro de servicio",
+        "descripcion": "Conexión a módulo de control, monitoreo y ajuste de parámetros.",
+        "lineas": [],
+        "cantidad": 1,
+        "importe": 17980.0
+      }
+    ],
+    "subtotal": 38410.0,
+    "iva": 6145.6,
+    "total": 44555.6,
+    "formaPago": "70% anticipo / 30% entrega",
+    "tiempoEntrega": "Operado",
+    "anio": 2026,
+    "estatus": "importada",
+    "origen": "pdf",
+    "_validacion": {
+      "suma_partidas_ok": true,
+      "iva_16_ok": true,
+      "total_ok": true
+    }
+  }
+]

@@ -1,0 +1,25 @@
+# Dependencias
+node_modules/
+
+# Build
+functions/lib/
+web/dist/
+
+# Secretos y entorno — NUNCA subir
+.env
+.env.*
+!.env.example
+*-service-account*.json
+
+# Firebase local
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+pglite-debug.log
+
+# Editor / SO
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

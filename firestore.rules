@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// Principio: los clientes web (Porttea-Gener) solo LEEN; toda escritura pasa por
+// Cloud Functions (Admin SDK), donde se validan roles y transacciones (folio).
+// La identidad es el número de teléfono (Firebase Auth phone sign-in).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function telefono() {
+      // El token de phone sign-in trae el número en formato E.164 (+52...)
+      return request.auth.token.phone_number;
+    }
+
+    function usuarioActivo() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/usuarios/$(telefono()))
+        && get(/databases/$(database)/documents/usuarios/$(telefono())).data.activo == true;
+    }
+
+    function rol() {
+      return get(/databases/$(database)/documents/usuarios/$(telefono())).data.rol;
+    }
+
+    // Dueño y secretaria pueden leer el dominio de cotizaciones
+    match /clientes/{doc=**} {
+      allow read: if usuarioActivo() && rol() in ['dueno', 'secretaria'];
+      allow write: if false;
+    }
+    match /cotizaciones/{doc=**} {
+      allow read: if usuarioActivo() && rol() in ['dueno', 'secretaria'];
+      allow write: if false;
+    }
+    match /plantillas/{doc=**} {
+      allow read: if usuarioActivo() && rol() in ['dueno', 'secretaria'];
+      allow write: if false;
+    }
+    match /precios_historicos/{doc=**} {
+      allow read: if usuarioActivo() && rol() in ['dueno', 'secretaria'];
+      allow write: if false;
+    }
+
+    // Solo el dueño ve sus recordatorios y la lista de usuarios
+    match /recordatorios/{doc=**} {
+      allow read: if usuarioActivo() && rol() == 'dueno';
+      allow write: if false;
+    }
+    match /usuarios/{doc=**} {
+      allow read: if usuarioActivo() && rol() == 'dueno';
+      allow write: if false;
+    }
+
+    // Contadores de folio: nunca accesibles desde el cliente
+    match /counters/{doc=**} {
+      allow read, write: if false;
+    }
+  }
+}
