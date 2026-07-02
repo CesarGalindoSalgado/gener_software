@@ -9,9 +9,12 @@ import { procesarMensaje } from './router/router';
 initializeApp();
 const db = getFirestore();
 
+// El bot resuelve por número: el id del doc es el correo (identidad web),
+// así que se busca por el campo `telefono`. Admin SDK ignora las reglas y
+// puede consultar libremente.
 async function buscarUsuario(telefono: string): Promise<Usuario | null> {
-  const snap = await db.doc(`usuarios/${telefono}`).get();
-  return snap.exists ? (snap.data() as Usuario) : null;
+  const q = await db.collection('usuarios').where('telefono', '==', telefono).limit(1).get();
+  return q.empty ? null : (q.docs[0].data() as Usuario);
 }
 
 // Webhook de WhatsApp (servicio de sesión del equipo).

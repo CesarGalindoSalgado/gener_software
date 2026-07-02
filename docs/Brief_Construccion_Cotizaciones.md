@@ -5,7 +5,7 @@
 **Este documento:** el "cómo" técnico. Si algo de negocio no está aquí, manda la Ficha.
 
 > **Nota de revisión (2026-07-02):** esta versión integra los ajustes acordados en el análisis técnico:
-> (1) se agrega `importada` al enum de estatus; (2) `clonarComoBase` recibe el cliente destino y no arrastra la forma de pago origen; (3) el botón/acción **Aprobar** se restringe por rol `dueno` en UI **y** backend; (4) autenticación de Porttea-Gener: **Firebase Auth con phone sign-in**; (5) la "atomicidad" de la aprobación se precisa como transacción (folio + estatus) + efectos idempotentes con reintento; (6) regla de redondeo de IVA a 2 decimales con tolerancia ±0.01 en reconciliación del ETL; (7) `fechaEnvio` se sella al aprobar y se agrega `fechaEntregaCliente` opcional.
+> (1) se agrega `importada` al enum de estatus; (2) `clonarComoBase` recibe el cliente destino y no arrastra la forma de pago origen; (3) el botón/acción **Aprobar** se restringe por rol `dueno` en UI **y** backend; (4) autenticación de Porttea-Gener: **Firebase Auth con correo + contraseña** (identidad web = correo; teléfono solo para el bot); (5) la "atomicidad" de la aprobación se precisa como transacción (folio + estatus) + efectos idempotentes con reintento; (6) regla de redondeo de IVA a 2 decimales con tolerancia ±0.01 en reconciliación del ETL; (7) `fechaEnvio` se sella al aprobar y se agrega `fechaEntregaCliente` opcional.
 
 ---
 
@@ -19,7 +19,7 @@ Prioridad de construcción: **infraestructura compartida primero; luego la creac
 
 ## 1. Stack y convenciones
 
-- **Backend/datos:** Firebase — Firestore (datos), Cloud Functions (lógica), Cloud Scheduler (recordatorios), Firebase Hosting (**Porttea-Gener**: portal + vista de dos paneles), **Firebase Auth con phone sign-in** para la plataforma (la identidad sigue siendo el número, igual que en WhatsApp; da `request.auth` real para las Security Rules).
+- **Backend/datos:** Firebase — Firestore (datos), Cloud Functions (lógica), Cloud Scheduler (recordatorios), Firebase Hosting (**Porttea-Gener**: portal + vista de dos paneles), **Firebase Auth con correo + contraseña** para la plataforma web. **Dos identidades por persona:** el correo (login web, `request.auth.token.email`, es el id del doc en `usuarios`) y el teléfono (identidad del bot WhatsApp/Telegram, guardado como campo). El dueño da de alta las cuentas; para blindar el whitelist se exige `email_verified` (o se crean con Admin SDK y `emailVerified: true`).
 - **Canal:** servicio de sesión de WhatsApp (número propio, ya operado por el equipo, reconexión resuelta) + Telegram de respaldo. **El canal es solo transporte; la fuente de verdad es Firestore.** El router debe ser agnóstico al canal desde el día 1: ambos webhooks normalizan al mismo payload interno.
 - **IA (cerebro de Portteo):** LLM vía API para intención, redacción de conceptos y sugerencias. Clave en secretos, nunca en cliente.
 - **PDF:** render HTML → PDF (mismo HTML que el panel de vista en vivo).
@@ -46,9 +46,9 @@ Prioridad de construcción: **infraestructura compartida primero; luego la creac
 
 Colecciones y documentos. Tipos entre paréntesis. Los arreglos embebidos se guardan juntos porque se leen/escriben juntos.
 
-### `usuarios/{telefono}`
-- `nombre` (string), `rol` (enum: `dueno` | `secretaria` | `trabajador`), `activo` (bool)
-- La identidad es el número; solo números en esta colección pueden invocar a Portteo (lista blanca).
+### `usuarios/{correo}`
+- `nombre` (string), `correo` (string, = id del doc, identidad web), `rol` (enum: `dueno` | `secretaria` | `trabajador`), `activo` (bool), `telefono` (string?, identidad del bot, solo dígitos con lada)
+- **Dos whitelists sobre una colección:** la web resuelve por correo (`get(usuarios/{email})` en las reglas); el bot resuelve por el campo `telefono` (query con Admin SDK, que ignora las reglas). Un número o correo fuera de la colección no se atiende.
 
 ### `clientes/{clienteId}`
 - `nombre` (string), `atencion` (string?), `telefono` (string?), `correo` (string?)
@@ -126,7 +126,7 @@ Herramientas expuestas al LLM: `buscarHistorico(cliente, concepto)`, `crearBorra
 - **Hecho cuando:** desde el chat se puede armar una cotización de principio a fin invocando estas herramientas; se puede pedir una cotización pasada y verla renderizada; se puede clonar una como base; y el LLM nunca inventa precios (siempre del histórico o dictados por el dueño).
 
 ### 5.3 Porttea-Gener — construcción de cotizaciones (dos paneles) · PRIORIDAD
-**Forma 1 (principal, se construye primero).** La creación ocurre en Porttea-Gener, en una vista de dos paneles, disponible **solo para dueño y secretaria** (Firebase Auth phone sign-in + rol de `usuarios/{telefono}`):
+**Forma 1 (principal, se construye primero).** La creación ocurre en Porttea-Gener, en una vista de dos paneles, disponible **solo para dueño y secretaria** (Firebase Auth correo+contraseña + rol de `usuarios/{correo}`):
   - Izquierda: **chat** (mismo agente Portteo).
   - Derecha: **cotización renderizándose en vivo** (el mismo HTML que será el PDF), que refleja los cambios al instante (listener de Firestore sobre la versión).
 - Botón **Aprobar** en el panel derecho — **visible y habilitado solo para rol `dueno`**, y validado también en backend. Al aprobar: transacción (folio + estatus + fechaEnvio) y efectos idempotentes (PDF, Drive, bitácora, pregunta **¿enviar al cliente o descargar aquí?**).

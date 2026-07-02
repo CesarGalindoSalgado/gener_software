@@ -25,7 +25,9 @@ export async function aprobarCotizacion(
   db: Firestore,
   params: {
     cotizacionId: string;
-    telefonoAprobador: string;
+    // Correo del aprobador (identidad web = id del doc de usuario). Desde el
+    // bot, resolver antes el teléfono → usuario y pasar su correo.
+    correoAprobador: string;
     ahora?: Date;
     semilla?: number; // solo se usa si el contador del año aún no existe
   }
@@ -33,7 +35,7 @@ export async function aprobarCotizacion(
   const ahora = params.ahora ?? new Date();
 
   // Gate de rol validado en backend, no solo en UI: solo el dueño aprueba.
-  const usuarioSnap = await db.doc(`usuarios/${params.telefonoAprobador}`).get();
+  const usuarioSnap = await db.doc(`usuarios/${params.correoAprobador}`).get();
   const usuario = usuarioSnap.data();
   if (!usuarioSnap.exists || !usuario?.activo || usuario.rol !== 'dueno') {
     throw new ErrorAprobacion('Solo el dueño puede aprobar cotizaciones.', 'sin-permiso');

@@ -13,8 +13,10 @@ export type EstatusCotizacion =
 
 export interface Usuario {
   nombre: string;
+  correo: string; // identidad web (login con Google/Gmail); es el id del doc
   rol: Rol;
   activo: boolean;
+  telefono?: string; // identidad del bot (WhatsApp/Telegram), solo dígitos con lada
 }
 
 export interface Cliente {

@@ -30,13 +30,13 @@ function fakeFirestore(datos: Record<string, Record<string, unknown>>) {
   } as never;
 }
 
-const DUENO = '5217771112233';
-const SECRETARIA = '5217774445566';
+const DUENO = 'gabriel@gener.com';
+const SECRETARIA = 'paty@gener.com';
 
 const base = () =>
   fakeFirestore({
-    [`usuarios/${DUENO}`]: { nombre: 'Gabriel', rol: 'dueno', activo: true },
-    [`usuarios/${SECRETARIA}`]: { nombre: 'Secretaria', rol: 'secretaria', activo: true },
+    [`usuarios/${DUENO}`]: { nombre: 'Gabriel', correo: DUENO, rol: 'dueno', activo: true },
+    [`usuarios/${SECRETARIA}`]: { nombre: 'Paty', correo: SECRETARIA, rol: 'secretaria', activo: true },
     'cotizaciones/cot1': { folio: null, estatus: 'borrador', clienteId: 'c1' },
   });
 
@@ -48,7 +48,7 @@ describe('aprobarCotizacion', () => {
     const db = base();
     const r = await aprobarCotizacion(db, {
       cotizacionId: 'cot1',
-      telefonoAprobador: DUENO,
+      correoAprobador: DUENO,
       ahora: AHORA,
       semilla: 41,
     });
@@ -66,8 +66,8 @@ describe('aprobarCotizacion', () => {
       estatus: 'borrador',
       clienteId: 'c2',
     });
-    const r1 = await aprobarCotizacion(db, { cotizacionId: 'cot1', telefonoAprobador: DUENO, ahora: AHORA });
-    const r2 = await aprobarCotizacion(db, { cotizacionId: 'cot2', telefonoAprobador: DUENO, ahora: AHORA });
+    const r1 = await aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA });
+    const r2 = await aprobarCotizacion(db, { cotizacionId: 'cot2', correoAprobador: DUENO, ahora: AHORA });
     expect(r1.consecutivo + 1).toBe(r2.consecutivo);
     expect(r1.folio).not.toBe(r2.folio);
   });
@@ -75,22 +75,22 @@ describe('aprobarCotizacion', () => {
   it('la secretaria NO puede aprobar (gate en backend)', async () => {
     const db = base();
     await expect(
-      aprobarCotizacion(db, { cotizacionId: 'cot1', telefonoAprobador: SECRETARIA, ahora: AHORA })
+      aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: SECRETARIA, ahora: AHORA })
     ).rejects.toThrowError(ErrorAprobacion);
   });
 
   it('un número fuera de la lista blanca no puede aprobar', async () => {
     const db = base();
     await expect(
-      aprobarCotizacion(db, { cotizacionId: 'cot1', telefonoAprobador: '000', ahora: AHORA })
+      aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: 'desconocido@x.com', ahora: AHORA })
     ).rejects.toThrowError('Solo el dueño');
   });
 
   it('no re-aprueba: una cotización con folio no consume folio nuevo', async () => {
     const db = base();
-    await aprobarCotizacion(db, { cotizacionId: 'cot1', telefonoAprobador: DUENO, ahora: AHORA });
+    await aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA });
     await expect(
-      aprobarCotizacion(db, { cotizacionId: 'cot1', telefonoAprobador: DUENO, ahora: AHORA })
+      aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA })
     ).rejects.toThrowError('ya tiene folio');
   });
 
@@ -101,7 +101,7 @@ describe('aprobarCotizacion', () => {
       estatus: 'rechazada',
     });
     await expect(
-      aprobarCotizacion(db, { cotizacionId: 'cot1', telefonoAprobador: DUENO, ahora: AHORA })
+      aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA })
     ).rejects.toThrowError('Transición de estatus inválida');
   });
 });

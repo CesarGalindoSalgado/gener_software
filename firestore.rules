@@ -6,19 +6,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function telefono() {
-      // El token de phone sign-in trae el número en formato E.164 (+52...)
-      return request.auth.token.phone_number;
+    // Identidad web: el correo del login con Google (Gmail). El doc de usuario
+    // usa el correo como id. El teléfono es identidad del bot, no de la web.
+    function correo() {
+      return request.auth.token.email;
     }
 
     function usuarioActivo() {
       return request.auth != null
-        && exists(/databases/$(database)/documents/usuarios/$(telefono()))
-        && get(/databases/$(database)/documents/usuarios/$(telefono())).data.activo == true;
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/usuarios/$(correo()))
+        && get(/databases/$(database)/documents/usuarios/$(correo())).data.activo == true;
     }
 
     function rol() {
-      return get(/databases/$(database)/documents/usuarios/$(telefono())).data.rol;
+      return get(/databases/$(database)/documents/usuarios/$(correo())).data.rol;
     }
 
     // Dueño y secretaria pueden leer el dominio de cotizaciones

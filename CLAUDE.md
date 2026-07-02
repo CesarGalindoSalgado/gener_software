@@ -34,6 +34,7 @@ npm run emuladores   # emuladores de Firebase (Firestore + Functions)
 - **Folio `GPC-MMYY-NNN`:** consecutivo anual (`counters/folio_{anio}`), se asigna **solo al aprobar** y en **transacción** Firestore. Nunca antes, nunca dos veces. Revisiones (Rev. B, C…) conservan el mismo folio.
 - **Aprobación = transacción + efectos:** la transacción cubre folio + estatus (`borrador` → `enviada`) + `fechaEnvio`. PDF, Drive, bitácora y notificación son efectos **idempotentes con reintento** (clave `cotizacionId` + `rev`), nunca dentro de la transacción.
 - **Solo rol `dueno` aprueba** — validado en backend, no solo en UI.
+- **Dos identidades por usuario:** la web (Porttea-Gener) usa **Firebase Auth correo + contraseña** y la identidad es el correo (`usuarios/{correo}`, id del doc); el bot (WhatsApp/Telegram) usa el **teléfono** (campo `telefono`, resuelto por query con Admin SDK). El dueño da de alta las cuentas web.
 - **IVA 16%**, redondeo a 2 decimales: `iva = round2(subtotal * 0.16)`. Reconciliación de importes históricos tolera ±0.01.
 - **Estados:** `borrador → enviada → autorizada → realizada`, rama `rechazada`; `importada` es solo para históricos del ETL.
 - El precio vive en la **partida (bloque)**, no en las líneas de alcance.
