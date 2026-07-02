@@ -1,6 +1,7 @@
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { validarTransicion } from '../dominio/estados';
 import { formatearFolio, nombreContador, partesFechaNegocio } from '../dominio/folio';
+import { ROLES_ADMIN, Rol } from '../dominio/tipos';
 
 export type CodigoErrorAprobacion = 'sin-permiso' | 'no-existe' | 'ya-tiene-folio';
 
@@ -34,11 +35,15 @@ export async function aprobarCotizacion(
 ): Promise<ResultadoAprobacion> {
   const ahora = params.ahora ?? new Date();
 
-  // Gate de rol validado en backend, no solo en UI: solo el dueño aprueba.
+  // Gate de rol validado en backend, no solo en UI: aprueba el dueño o el
+  // superAdmin (ROLES_ADMIN).
   const usuarioSnap = await db.doc(`usuarios/${params.correoAprobador}`).get();
   const usuario = usuarioSnap.data();
-  if (!usuarioSnap.exists || !usuario?.activo || usuario.rol !== 'dueno') {
-    throw new ErrorAprobacion('Solo el dueño puede aprobar cotizaciones.', 'sin-permiso');
+  if (!usuarioSnap.exists || !usuario?.activo || !ROLES_ADMIN.includes(usuario.rol as Rol)) {
+    throw new ErrorAprobacion(
+      'No tienes permiso para aprobar cotizaciones (se requiere dueño o superAdmin).',
+      'sin-permiso'
+    );
   }
 
   return db.runTransaction(async (tx) => {

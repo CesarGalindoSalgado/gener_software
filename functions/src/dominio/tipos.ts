@@ -1,7 +1,14 @@
 // Tipos del dominio de cotizaciones. Espejo del modelo Firestore del brief
 // (docs/Brief_Construccion_Cotizaciones.md, sección 3).
 
-export type Rol = 'dueno' | 'secretaria' | 'trabajador';
+// superAdmin: administrador técnico de la plataforma, por encima del dueño;
+// tiene todos los permisos del dueño y los reservados a administración.
+export type Rol = 'superAdmin' | 'dueno' | 'secretaria' | 'trabajador';
+
+// Roles con permiso de aprobar y de administración (usuarios, recordatorios).
+export const ROLES_ADMIN: Rol[] = ['superAdmin', 'dueno'];
+// Roles que pueden operar el dominio de cotizaciones (leer/armar).
+export const ROLES_OPERADOR: Rol[] = ['superAdmin', 'dueno', 'secretaria'];
 
 export type EstatusCotizacion =
   | 'borrador'

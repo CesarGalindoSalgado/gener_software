@@ -25,6 +25,7 @@ const MENU_SECRETARIA = [
 
 export function menuPorRol(rol: Rol, nombre: string): string {
   switch (rol) {
+    case 'superAdmin':
     case 'dueno':
       return `Hola ${nombre} 👋 ¿en qué te puedo ayudar?\n${MENU_DUENO}`;
     case 'secretaria':

@@ -28,12 +28,15 @@ async function resolverUsuario(correo: string): Promise<Usuario | null> {
 
 onAuthStateChanged(auth, async (user) => {
   estado.usuarioAuth = user;
-  if (user?.email) {
-    estado.usuario = await resolverUsuario(user.email);
-  } else {
+  try {
+    estado.usuario = user?.email ? await resolverUsuario(user.email) : null;
+  } catch (e) {
+    // Lectura rechazada por reglas o red: no dejar la sesión colgada.
+    console.error('No se pudo resolver el usuario en Firestore:', e);
     estado.usuario = null;
+  } finally {
+    estado.cargando = false;
   }
-  estado.cargando = false;
 });
 
 export const sesion = readonly(estado);

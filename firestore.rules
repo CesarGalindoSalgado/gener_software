@@ -2,52 +2,70 @@ rules_version = '2';
 
 // Principio: los clientes web (Porttea-Gener) solo LEEN; toda escritura pasa por
 // Cloud Functions (Admin SDK), donde se validan roles y transacciones (folio).
-// La identidad es el número de teléfono (Firebase Auth phone sign-in).
+// La identidad web es el correo (Firebase Auth email/password); el doc de
+// usuario usa el correo como id. El teléfono es identidad del bot, no de la web.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Identidad web: el correo del login con Google (Gmail). El doc de usuario
-    // usa el correo como id. El teléfono es identidad del bot, no de la web.
     function correo() {
-      return request.auth.token.email;
+      return request.auth != null ? request.auth.token.email : '';
+    }
+
+    function docUsuario() {
+      return get(/databases/$(database)/documents/usuarios/$(correo())).data;
     }
 
     function usuarioActivo() {
       return request.auth != null
-        && request.auth.token.email_verified == true
         && exists(/databases/$(database)/documents/usuarios/$(correo()))
-        && get(/databases/$(database)/documents/usuarios/$(correo())).data.activo == true;
+        && docUsuario().activo == true;
+      // TODO producción: exigir también docUsuario().correo == correo() y
+      // request.auth.token.email_verified == true (blinda contra registrar un
+      // correo del whitelist sin acceso a su bandeja). Se activa cuando el alta
+      // de usuarios la haga el Admin SDK creando cuentas ya verificadas.
     }
 
     function rol() {
-      return get(/databases/$(database)/documents/usuarios/$(correo())).data.rol;
+      return docUsuario().rol;
     }
 
-    // Dueño y secretaria pueden leer el dominio de cotizaciones
+    // superAdmin: administrador técnico, por encima del dueño.
+    function esAdmin() {
+      return usuarioActivo() && rol() in ['superAdmin', 'dueno'];
+    }
+    function esOperador() {
+      return usuarioActivo() && rol() in ['superAdmin', 'dueno', 'secretaria'];
+    }
+
+    // Cada usuario puede leer SU PROPIO doc (para descubrir su rol al entrar).
+    // Admin (superAdmin/dueño) puede leer todos (lista de usuarios en el portal).
+    match /usuarios/{correoDoc} {
+      allow read: if request.auth != null
+        && (request.auth.token.email == correoDoc || esAdmin());
+      allow write: if false; // altas/bajas por backend (Admin SDK)
+    }
+
+    // Dominio de cotizaciones: operadores (superAdmin/dueño/secretaria) leen
     match /clientes/{doc=**} {
-      allow read: if usuarioActivo() && rol() in ['dueno', 'secretaria'];
+      allow read: if esOperador();
       allow write: if false;
     }
     match /cotizaciones/{doc=**} {
-      allow read: if usuarioActivo() && rol() in ['dueno', 'secretaria'];
+      allow read: if esOperador();
       allow write: if false;
     }
     match /plantillas/{doc=**} {
-      allow read: if usuarioActivo() && rol() in ['dueno', 'secretaria'];
+      allow read: if esOperador();
       allow write: if false;
     }
     match /precios_historicos/{doc=**} {
-      allow read: if usuarioActivo() && rol() in ['dueno', 'secretaria'];
+      allow read: if esOperador();
       allow write: if false;
     }
 
-    // Solo el dueño ve sus recordatorios y la lista de usuarios
+    // Recordatorios: solo administración (superAdmin/dueño)
     match /recordatorios/{doc=**} {
-      allow read: if usuarioActivo() && rol() == 'dueno';
-      allow write: if false;
-    }
-    match /usuarios/{doc=**} {
-      allow read: if usuarioActivo() && rol() == 'dueno';
+      allow read: if esAdmin();
       allow write: if false;
     }
 

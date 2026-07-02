@@ -3,18 +3,19 @@ import { computed } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
 import { FileText, Users, LayoutTemplate, BellRing, LogOut, Zap } from 'lucide-vue-next';
 import { sesion, cerrarSesion } from '../sesion';
+import { ROLES_ADMIN } from '../dominio/tipos';
 
 const router = useRouter();
 
 const nombre = computed(() => sesion.usuario?.nombre ?? '');
 const rol = computed(() => sesion.usuario?.rol ?? 'trabajador');
-const esDueno = computed(() => rol.value === 'dueno');
+const esAdmin = computed(() => ROLES_ADMIN.includes(rol.value));
 
 const nav = computed(() => [
   { nombre: 'Cotizaciones', ruta: 'cotizaciones', icono: FileText, visible: true },
   { nombre: 'Plantillas', ruta: 'cotizaciones', icono: LayoutTemplate, visible: true },
-  { nombre: 'Usuarios', ruta: 'cotizaciones', icono: Users, visible: esDueno.value },
-  { nombre: 'Recordatorios', ruta: 'cotizaciones', icono: BellRing, visible: esDueno.value },
+  { nombre: 'Usuarios', ruta: 'cotizaciones', icono: Users, visible: esAdmin.value },
+  { nombre: 'Recordatorios', ruta: 'cotizaciones', icono: BellRing, visible: esAdmin.value },
 ]);
 
 async function salir() {

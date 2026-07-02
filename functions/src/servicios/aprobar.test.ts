@@ -79,11 +79,27 @@ describe('aprobarCotizacion', () => {
     ).rejects.toThrowError(ErrorAprobacion);
   });
 
-  it('un número fuera de la lista blanca no puede aprobar', async () => {
+  it('un correo fuera de la lista blanca no puede aprobar', async () => {
     const db = base();
     await expect(
       aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: 'desconocido@x.com', ahora: AHORA })
-    ).rejects.toThrowError('Solo el dueño');
+    ).rejects.toThrowError('No tienes permiso');
+  });
+
+  it('el superAdmin sí puede aprobar', async () => {
+    const db = base();
+    (db as never as { docs: Map<string, unknown> }).docs.set('usuarios/cesar@gener.com', {
+      nombre: 'Cesar',
+      correo: 'cesar@gener.com',
+      rol: 'superAdmin',
+      activo: true,
+    });
+    const r = await aprobarCotizacion(db, {
+      cotizacionId: 'cot1',
+      correoAprobador: 'cesar@gener.com',
+      ahora: AHORA,
+    });
+    expect(r.folio).toMatch(/^GPC-0726-\d{3}$/);
   });
 
   it('no re-aprueba: una cotización con folio no consume folio nuevo', async () => {
