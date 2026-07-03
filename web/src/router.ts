@@ -32,6 +32,12 @@ const router = createRouter({
           component: () => import('./vistas/Taller.vue'),
         },
         {
+          path: 'plantillas',
+          name: 'plantillas',
+          component: () => import('./vistas/Plantillas.vue'),
+          meta: { soloAdmin: true },
+        },
+        {
           path: 'usuarios',
           name: 'usuarios',
           component: () => import('./vistas/Usuarios.vue'),

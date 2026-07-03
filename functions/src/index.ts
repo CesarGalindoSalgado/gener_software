@@ -18,6 +18,7 @@ import {
   leerHistorialChat,
 } from './servicios/cotizaciones';
 import { actualizarUsuario, crearUsuario } from './servicios/usuarios';
+import { actualizarPlantilla, crearPlantilla } from './servicios/plantillas';
 
 initializeApp();
 const db = getFirestore();
@@ -154,6 +155,46 @@ export const aprobar = onCall({ region: REGION }, async (req) => {
       throw new HttpsError(codigo, e.message);
     }
     throw e;
+  }
+});
+
+// ---------- CRUD de plantillas (dueño / superAdmin) ----------
+
+export const crearPlantillaCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_ADMIN);
+  const nombre = String(req.data?.nombre ?? '').trim();
+  if (!nombre) throw new HttpsError('invalid-argument', 'Falta el nombre de la plantilla.');
+  try {
+    const id = await crearPlantilla(db, {
+      nombre,
+      descripcion: req.data?.descripcion,
+      precioSugerido: req.data?.precioSugerido ?? null,
+      lineas: Array.isArray(req.data?.lineas) ? req.data.lineas : [],
+      activa: req.data?.activa ?? true,
+    });
+    return { plantillaId: id };
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear la plantilla.');
+  }
+});
+
+export const actualizarPlantillaCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_ADMIN);
+  const plantillaId = String(req.data?.plantillaId ?? '');
+  if (!plantillaId) throw new HttpsError('invalid-argument', 'Falta plantillaId.');
+  try {
+    await actualizarPlantilla(db, plantillaId, {
+      nombre: req.data?.nombre,
+      descripcion: req.data?.descripcion,
+      precioSugerido: req.data?.precioSugerido,
+      lineas: req.data?.lineas,
+      activa: req.data?.activa,
+    });
+    return { ok: true };
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo actualizar.');
   }
 });
 
