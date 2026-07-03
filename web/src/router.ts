@@ -32,6 +32,11 @@ const router = createRouter({
           component: () => import('./vistas/Taller.vue'),
         },
         {
+          path: 'seguimiento',
+          name: 'seguimiento',
+          component: () => import('./vistas/Seguimiento.vue'),
+        },
+        {
           path: 'plantillas',
           name: 'plantillas',
           component: () => import('./vistas/Plantillas.vue'),

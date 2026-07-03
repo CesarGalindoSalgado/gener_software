@@ -11,6 +11,8 @@ import { normalizarWebhookWhatsapp } from './canal/whatsapp';
 import { ROLES_ADMIN, ROLES_OPERADOR, Rol, Usuario } from './dominio/tipos';
 import { procesarMensaje } from './router/router';
 import { aprobarCotizacion, ErrorAprobacion } from './servicios/aprobar';
+import { validarTransicion } from './dominio/estados';
+import { EstatusCotizacion } from './dominio/tipos';
 import { escribirBitacora } from './servicios/bitacora';
 import {
   crearBorrador,
@@ -156,6 +158,45 @@ export const aprobar = onCall({ region: REGION }, async (req) => {
     }
     throw e;
   }
+});
+
+// ---------- Cambio de estatus / seguimiento (operadores) ----------
+// enviada → autorizada | rechazada ; autorizada → realizada. Validado por la
+// máquina de estados. La transición borrador → enviada NO pasa por aquí (esa
+// es la aprobación, con folio).
+export const cambiarEstatus = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+
+  const cotizacionId = String(req.data?.cotizacionId ?? '');
+  const nuevo = String(req.data?.estatus ?? '') as EstatusCotizacion;
+  if (!cotizacionId || !nuevo) {
+    throw new HttpsError('invalid-argument', 'Faltan cotizacionId o estatus.');
+  }
+
+  const cotRef = db.doc(`cotizaciones/${cotizacionId}`);
+  const snap = await cotRef.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'No existe la cotización.');
+  const actual = snap.data()!.estatus as EstatusCotizacion;
+
+  // Aprobar (borrador → enviada) va por el callable `aprobar`, no por aquí.
+  if (actual === 'borrador') {
+    throw new HttpsError('failed-precondition', 'Usa Aprobar para enviar un borrador.');
+  }
+  try {
+    validarTransicion(actual, nuevo);
+  } catch {
+    throw new HttpsError('failed-precondition', `Transición inválida: ${actual} → ${nuevo}.`);
+  }
+
+  const upd: Record<string, unknown> = { estatus: nuevo };
+  await cotRef.update(upd);
+  // Reflejar también a nivel de la versión actual.
+  const versionActualId = snap.data()!.versionActualId as string | undefined;
+  if (versionActualId) {
+    await db.doc(`cotizaciones/${cotizacionId}/versiones/${versionActualId}`).update({ estatus: nuevo });
+  }
+  return { ok: true, estatus: nuevo };
 });
 
 // ---------- CRUD de plantillas (dueño / superAdmin) ----------

@@ -5,6 +5,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  where,
   type Timestamp,
   type Unsubscribe,
 } from 'firebase/firestore';
@@ -51,6 +52,7 @@ export interface MensajeChat {
 const callableCrear = httpsCallable<{ clienteNombre: string; titulo: string }, { cotizacionId: string; versionId: string }>(functions, 'crearCotizacion');
 const callablePortteo = httpsCallable<{ cotizacionId: string; mensaje: string }, { texto: string }>(functions, 'portteo');
 const callableAprobar = httpsCallable<{ cotizacionId: string }, { folio: string }>(functions, 'aprobar');
+const callableCambiarEstatus = httpsCallable<{ cotizacionId: string; estatus: EstatusCotizacion }, { ok: boolean; estatus: string }>(functions, 'cambiarEstatus');
 
 export async function crearCotizacion(clienteNombre: string, titulo: string) {
   const res = await callableCrear({ clienteNombre, titulo });
@@ -65,6 +67,25 @@ export async function enviarMensajePortteo(cotizacionId: string, mensaje: string
 export async function aprobarCotizacion(cotizacionId: string) {
   const res = await callableAprobar({ cotizacionId });
   return res.data;
+}
+
+export async function cambiarEstatus(cotizacionId: string, estatus: EstatusCotizacion) {
+  return (await callableCambiarEstatus({ cotizacionId, estatus })).data;
+}
+
+// Cotizaciones enviadas sin cerrar (para seguimiento), más antiguas primero.
+export function suscribirSeguimiento(
+  cb: (items: ({ id: string } & CotizacionDoc)[]) => void
+): Unsubscribe {
+  const q = query(
+    collection(db, 'cotizaciones'),
+    where('estatus', '==', 'enviada'),
+    orderBy('fechaEnvio', 'asc'),
+    limit(100)
+  );
+  return onSnapshot(q, (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as CotizacionDoc) })));
+  });
 }
 
 // ---------- Suscripciones en vivo (lecturas permitidas por reglas) ----------
