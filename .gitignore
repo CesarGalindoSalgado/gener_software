@@ -9,6 +9,8 @@ web/dist/
 .env
 .env.*
 !.env.example
+.secret.local
+*.secret.local
 *-service-account*.json
 
 # Firebase local
