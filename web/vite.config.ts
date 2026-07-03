@@ -10,6 +10,7 @@ export default defineConfig({
     // host: true expone el server en la red local (0.0.0.0) para verlo desde
     // otra computadora. Respeta PORT si el entorno (preview) lo asigna.
     host: true,
+    allowedHosts:true,
     port: process.env.PORT ? Number(process.env.PORT) : 5173,
   },
   resolve: {

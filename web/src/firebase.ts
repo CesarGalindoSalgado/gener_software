@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 // Config del proyecto gener-3ecc1. Estos valores NO son secretos: identifican
 // el proyecto y viajan al cliente. La seguridad real vive en las reglas de
@@ -17,3 +18,4 @@ const firebaseConfig = {
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
+export const functions = getFunctions(firebaseApp, 'us-central1');

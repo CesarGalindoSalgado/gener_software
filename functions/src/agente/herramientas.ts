@@ -21,14 +21,14 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
   {
     name: 'crearBorrador',
     description:
-      'Crea una cotización nueva en estatus borrador (Rev. A, sin folio) para un cliente.',
+      'Crea una cotización nueva en estatus borrador (Rev. A, sin folio) para un cliente. Si el cliente no existe, se registra.',
     input_schema: {
       type: 'object',
       properties: {
-        clienteId: { type: 'string', description: 'Id del cliente en Firestore' },
+        clienteNombre: { type: 'string', description: 'Nombre del cliente' },
         titulo: { type: 'string', description: 'Título o asunto de la cotización' },
       },
-      required: ['clienteId', 'titulo'],
+      required: ['clienteNombre', 'titulo'],
     },
   },
   {
@@ -38,7 +38,6 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        versionId: { type: 'string' },
         titulo: { type: 'string' },
         descripcion: { type: 'string' },
         lineas: { type: 'array', items: { type: 'string' } },
@@ -46,10 +45,10 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
         importe: {
           type: 'number',
           description:
-            'Precio del bloque. Debe venir del histórico o dictado por el dueño — nunca inventado.',
+            'Precio del bloque. Debe venir del histórico o dictado por el usuario — nunca inventado.',
         },
       },
-      required: ['versionId', 'titulo', 'importe'],
+      required: ['titulo', 'importe'],
     },
   },
   {
@@ -58,23 +57,21 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        versionId: { type: 'string' },
         bloque: { type: 'number', description: 'Índice del bloque (empezando en 0)' },
         nuevoImporte: { type: 'number' },
       },
-      required: ['versionId', 'bloque', 'nuevoImporte'],
+      required: ['bloque', 'nuevoImporte'],
     },
   },
   {
     name: 'aprobarCotizacion',
     description:
-      'Aprueba una cotización: asigna folio transaccional, cambia a enviada y dispara PDF/Drive/bitácora. SOLO el rol dueño puede aprobar; el backend rechaza a cualquier otro.',
+      'Aprueba la cotización en edición (o la indicada): asigna folio transaccional y cambia a enviada. SOLO dueño o superAdmin pueden aprobar; el backend rechaza a cualquier otro. Confirma con el usuario antes de aprobar.',
     input_schema: {
       type: 'object',
       properties: {
-        cotizacionId: { type: 'string' },
+        cotizacionId: { type: 'string', description: 'Opcional; por defecto la cotización en edición' },
       },
-      required: ['cotizacionId'],
     },
   },
   {
@@ -97,9 +94,34 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
       type: 'object',
       properties: {
         cotizacionId: { type: 'string', description: 'Cotización origen' },
-        clienteId: { type: 'string', description: 'Cliente destino del nuevo borrador' },
+        clienteNombre: { type: 'string', description: 'Nombre del cliente destino del nuevo borrador' },
       },
-      required: ['cotizacionId', 'clienteId'],
+      required: ['cotizacionId', 'clienteNombre'],
+    },
+  },
+  {
+    name: 'quitarBloque',
+    description: 'Elimina una partida (bloque) de la versión en edición y recalcula los totales.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        bloque: { type: 'number', description: 'Índice del bloque (empezando en 0)' },
+      },
+      required: ['bloque'],
+    },
+  },
+  {
+    name: 'actualizarDatos',
+    description:
+      'Actualiza datos generales de la cotización en edición: título/asunto, forma de pago, tiempo de entrega o persona de atención.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        titulo: { type: 'string' },
+        formaPago: { type: 'string' },
+        tiempoEntrega: { type: 'string' },
+        atencion: { type: 'string' },
+      },
     },
   },
   {
@@ -123,8 +145,11 @@ export interface EjecutorHerramientas {
 }
 
 export interface ContextoEjecucion {
-  telefono: string;
-  rol: 'dueno' | 'secretaria' | 'trabajador';
+  correo: string; // identidad canónica del usuario (id de usuarios/{correo})
+  rol: 'superAdmin' | 'dueno' | 'secretaria' | 'trabajador';
+  // Cotización sobre la que trabaja el chat del taller (si aplica)
+  cotizacionId?: string;
+  versionId?: string;
 }
 
 // Stub de fase 1: responde que la herramienta aún no está conectada.

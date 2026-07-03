@@ -20,7 +20,7 @@ const router = createRouter({
           component: () => import('./vistas/Cotizaciones.vue'),
         },
         {
-          path: 'taller',
+          path: 'taller/:id?',
           name: 'taller',
           component: () => import('./vistas/Taller.vue'),
         },

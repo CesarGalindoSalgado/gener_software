@@ -9,7 +9,7 @@ const path = require('path');
 module.exports = {
   apps: [
     {
-      name: 'porttea-web',
+      name: 'gener-web',
       cwd: path.join(__dirname, 'web'),
       script: path.join(__dirname, 'web', 'node_modules', 'vite', 'bin', 'vite.js'),
       args: '--host --port 5173',
