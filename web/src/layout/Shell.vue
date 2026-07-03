@@ -16,7 +16,7 @@ const nav = computed(() => [
   { nombre: 'Seguimiento', ruta: 'seguimiento', icono: ClipboardCheck, visible: true },
   { nombre: 'Plantillas', ruta: 'plantillas', icono: LayoutTemplate, visible: esAdmin.value },
   { nombre: 'Usuarios', ruta: 'usuarios', icono: Users, visible: esAdmin.value },
-  { nombre: 'Recordatorios', ruta: 'cotizaciones', icono: BellRing, visible: esAdmin.value },
+  { nombre: 'Recordatorios', ruta: 'recordatorios', icono: BellRing, visible: esAdmin.value },
 ]);
 
 async function salir() {

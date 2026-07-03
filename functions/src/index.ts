@@ -22,6 +22,8 @@ import {
 } from './servicios/cotizaciones';
 import { actualizarUsuario, crearUsuario } from './servicios/usuarios';
 import { actualizarPlantilla, crearPlantilla } from './servicios/plantillas';
+import { contarPendientes, crearRecordatorioPortal, marcarRecordatorio } from './servicios/recordatorios';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 initializeApp();
 const db = getFirestore();
@@ -252,6 +254,56 @@ export const actualizarPlantillaCallable = onCall({ region: REGION }, async (req
     throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo actualizar.');
   }
 });
+
+// ---------- Recordatorios del dueño (admin) ----------
+
+export const crearRecordatorioCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_ADMIN);
+  const descripcion = String(req.data?.descripcion ?? '').trim();
+  if (!descripcion) throw new HttpsError('invalid-argument', 'Falta la descripción.');
+  try {
+    return await crearRecordatorioPortal(db, {
+      correo: usuario.correo,
+      descripcion,
+      clienteTexto: req.data?.clienteTexto ? String(req.data.clienteTexto) : undefined,
+    });
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear.');
+  }
+});
+
+export const marcarRecordatorioCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_ADMIN);
+  const recordatorioId = String(req.data?.recordatorioId ?? '');
+  const estatus = String(req.data?.estatus ?? '') as 'pendiente' | 'hecho';
+  if (!recordatorioId || !['pendiente', 'hecho'].includes(estatus)) {
+    throw new HttpsError('invalid-argument', 'Faltan recordatorioId o estatus válido.');
+  }
+  await marcarRecordatorio(db, recordatorioId, estatus);
+  return { ok: true };
+});
+
+// Scheduler: lunes, miércoles y viernes 9:00 am (Morelos), solo si hay
+// pendientes. La ENTREGA del aviso se conecta a WhatsApp en la fase 5; por
+// ahora se registra en logs y queda listo el mecanismo.
+export const avisoRecordatorios = onSchedule(
+  { schedule: '0 9 * * 1,3,5', timeZone: 'America/Mexico_City', region: REGION },
+  async () => {
+    const pendientes = await contarPendientes(db);
+    if (pendientes === 0) {
+      logger.info('Aviso L/M/V: sin recordatorios pendientes, no se envía nada.');
+      return;
+    }
+    const mensaje =
+      pendientes === 1
+        ? 'Tienes 1 cotización pendiente por armar. ¡La haces en 5 minutos, no te rindas! 💪'
+        : `Tienes ${pendientes} cotizaciones pendientes por armar. ¡Vamos, avanza aunque sea una hoy! 💪`;
+    // TODO fase 5: enviar `mensaje` por WhatsApp al dueño.
+    logger.info(`Aviso L/M/V (pendiente de entregar por WhatsApp): ${mensaje}`);
+  }
+);
 
 // ---------- Gestión de usuarios (solo superAdmin) ----------
 

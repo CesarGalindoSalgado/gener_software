@@ -43,6 +43,12 @@ const router = createRouter({
           meta: { soloAdmin: true },
         },
         {
+          path: 'recordatorios',
+          name: 'recordatorios',
+          component: () => import('./vistas/Recordatorios.vue'),
+          meta: { soloAdmin: true },
+        },
+        {
           path: 'usuarios',
           name: 'usuarios',
           component: () => import('./vistas/Usuarios.vue'),
