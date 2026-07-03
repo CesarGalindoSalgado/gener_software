@@ -59,13 +59,14 @@ const fechaLarga = computed(() => {
       <div class="asunto"><span class="etq">Asunto:</span> {{ borrador.asunto }}</div>
     </section>
 
-    <!-- Partidas -->
+    <!-- Partidas (5 columnas según la Ficha: Partida · Cant. · Conceptos · P. Unit · Importe) -->
     <table class="partidas">
       <thead>
         <tr>
-          <th class="c-num">#</th>
+          <th class="c-num">Partida</th>
           <th class="c-cant">Cant.</th>
-          <th class="c-desc">Concepto</th>
+          <th class="c-desc">Conceptos</th>
+          <th class="c-imp">P. Unit</th>
           <th class="c-imp">Importe</th>
         </tr>
       </thead>
@@ -80,10 +81,11 @@ const fechaLarga = computed(() => {
               <li v-for="(l, j) in p.lineas" :key="j">{{ l }}</li>
             </ul>
           </td>
+          <td class="c-imp">{{ formatearMoneda(p.importe) }}</td>
           <td class="c-imp">{{ formatearMoneda(p.importe * (p.cantidad || 1)) }}</td>
         </tr>
         <tr v-if="borrador.partidas.length === 0" class="vacio">
-          <td colspan="4">Sin partidas todavía.</td>
+          <td colspan="5">Sin partidas todavía.</td>
         </tr>
       </tbody>
     </table>
@@ -115,6 +117,20 @@ const fechaLarga = computed(() => {
       <div><span class="etq">Forma de pago:</span> {{ borrador.formaPago }}</div>
       <div><span class="etq">Tiempo de entrega:</span> {{ borrador.tiempoEntrega }}</div>
       <div class="nota">Precios en moneda nacional (M.N.). En caso de encontrar algún desperfecto adicional se notificará antes de proceder.</div>
+    </section>
+
+    <!-- Firma -->
+    <section class="firmas">
+      <div class="firma">
+        <div class="firma-linea"></div>
+        <div class="firma-rol">Atentamente</div>
+        <div class="firma-nombre">Gener Power &amp; Control</div>
+      </div>
+      <div class="firma">
+        <div class="firma-linea"></div>
+        <div class="firma-rol">Acepta el cliente</div>
+        <div class="firma-nombre">{{ borrador.cliente.atencion || borrador.cliente.nombre }}</div>
+      </div>
     </section>
 
     <!-- Pie oficial -->
@@ -293,8 +309,33 @@ const fechaLarga = computed(() => {
   font-style: italic;
 }
 
+.firmas {
+  display: flex;
+  justify-content: space-around;
+  gap: 40px;
+  margin-top: 40px;
+}
+.firma {
+  flex: 1;
+  max-width: 240px;
+  text-align: center;
+}
+.firma-linea {
+  border-top: 1px solid #10243f;
+  margin-bottom: 6px;
+}
+.firma-rol {
+  font-size: 11px;
+  color: #647183;
+}
+.firma-nombre {
+  font-size: 12px;
+  font-weight: 600;
+  color: #10243f;
+}
+
 .pie {
-  margin-top: 24px;
+  margin-top: 30px;
   padding-top: 10px;
   border-top: 1px solid #e1e6ee;
   text-align: center;
