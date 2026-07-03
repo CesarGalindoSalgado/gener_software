@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall, onRequest, CallableRequest } from 'firebase-functions/v2/https';
@@ -362,6 +362,30 @@ async function buscarUsuarioPorTelefono(telefono: string): Promise<Usuario | nul
   const q = await db.collection('usuarios').where('telefono', '==', telefono).limit(1).get();
   return q.empty ? null : (q.docs[0].data() as Usuario);
 }
+
+// El bot publica aquí su estado de conexión y el QR de vinculación, para que
+// el portal lo muestre en vivo (colección sistema/whatsapp). Protegido con el
+// mismo secreto del webhook.
+export const estadoBot = onRequest(
+  { region: REGION, secrets: ['WHATSAPP_WEBHOOK_SECRET'] },
+  async (req, res) => {
+    if (req.get('x-webhook-secret') !== process.env.WHATSAPP_WEBHOOK_SECRET) {
+      res.status(401).send('No autorizado');
+      return;
+    }
+    const { estado, qr, numero } = req.body ?? {};
+    await db.doc('sistema/whatsapp').set(
+      {
+        estado: estado ?? null,
+        qr: qr ?? null,
+        numero: numero ?? null,
+        actualizadoEn: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    res.status(200).json({ ok: true });
+  }
+);
 
 export const webhookWhatsapp = onRequest(
   { region: REGION, secrets: ['WHATSAPP_WEBHOOK_SECRET'] },

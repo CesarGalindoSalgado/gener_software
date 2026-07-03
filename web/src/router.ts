@@ -49,6 +49,12 @@ const router = createRouter({
           meta: { soloAdmin: true },
         },
         {
+          path: 'whatsapp',
+          name: 'whatsapp',
+          component: () => import('./vistas/WhatsApp.vue'),
+          meta: { soloAdmin: true },
+        },
+        {
           path: 'usuarios',
           name: 'usuarios',
           component: () => import('./vistas/Usuarios.vue'),

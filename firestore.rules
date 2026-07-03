@@ -69,6 +69,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Estado del sistema (ej. conexión de WhatsApp): admin lee; escribe el backend
+    match /sistema/{doc=**} {
+      allow read: if esAdmin();
+      allow write: if false;
+    }
+
     // Contadores de folio: nunca accesibles desde el cliente
     match /counters/{doc=**} {
       allow read, write: if false;

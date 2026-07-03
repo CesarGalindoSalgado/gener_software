@@ -20,7 +20,22 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const WEBHOOK_SECRET = process.env.WHATSAPP_WEBHOOK_SECRET ?? '';
+// Endpoint donde publicamos el QR/estado para que el portal lo muestre.
+const ESTADO_URL = WEBHOOK_URL ? WEBHOOK_URL.replace(/webhookWhatsapp$/, 'estadoBot') : '';
 const logger = pino({ level: 'silent' });
+
+async function publicarEstado(datos) {
+  if (!ESTADO_URL) return;
+  try {
+    await fetch(ESTADO_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-webhook-secret': WEBHOOK_SECRET },
+      body: JSON.stringify(datos),
+    });
+  } catch (e) {
+    console.error('No se pudo publicar el estado:', e?.message ?? e);
+  }
+}
 
 if (!WEBHOOK_URL) {
   console.error('Falta WEBHOOK_URL en el entorno.');
@@ -61,16 +76,19 @@ async function iniciar() {
   sock.ev.on('connection.update', (u) => {
     const { connection, lastDisconnect, qr } = u;
     if (qr) {
-      console.log('\n📲 Escanea este código QR con el WhatsApp del número del bot:\n');
+      console.log('\n📲 Escanea este QR (o desde el portal → WhatsApp):\n');
       qrcode.generate(qr, { small: true });
+      publicarEstado({ estado: 'esperando_qr', qr });
     }
     if (connection === 'open') {
       console.log('✅ WhatsApp conectado. El bot está en línea.');
+      publicarEstado({ estado: 'conectado', qr: null, numero: sock.user?.id?.split(':')[0] ?? null });
     }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
       const cerroSesion = code === DisconnectReason.loggedOut;
       console.log(`Conexión cerrada (código ${code}).`);
+      publicarEstado({ estado: cerroSesion ? 'desvinculado' : 'desconectado', qr: null });
       if (cerroSesion) {
         console.log('Sesión cerrada desde el teléfono. Borra la carpeta bot/auth y vuelve a vincular.');
       } else {

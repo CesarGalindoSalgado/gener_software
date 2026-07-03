@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
-import { FileText, Users, LayoutTemplate, BellRing, LogOut, Zap, ClipboardCheck } from 'lucide-vue-next';
+import { FileText, Users, LayoutTemplate, BellRing, LogOut, Zap, ClipboardCheck, MessageCircle } from 'lucide-vue-next';
 import { sesion, cerrarSesion } from '../sesion';
 import { ROLES_ADMIN } from '../dominio/tipos';
 
@@ -17,6 +17,7 @@ const nav = computed(() => [
   { nombre: 'Plantillas', ruta: 'plantillas', icono: LayoutTemplate, visible: esAdmin.value },
   { nombre: 'Usuarios', ruta: 'usuarios', icono: Users, visible: esAdmin.value },
   { nombre: 'Recordatorios', ruta: 'recordatorios', icono: BellRing, visible: esAdmin.value },
+  { nombre: 'WhatsApp', ruta: 'whatsapp', icono: MessageCircle, visible: esAdmin.value },
 ]);
 
 async function salir() {
