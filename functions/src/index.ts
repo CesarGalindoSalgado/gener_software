@@ -352,6 +352,10 @@ export const actualizarUsuarioCallable = onCall({ region: REGION }, async (req) 
   }
 });
 
+// El importador de histórico (servicios/etl.ts) se despliega como endpoint
+// temporal protegido por token cuando hay que cargar el corpus. Ver
+// docs/ETL_HISTORICO.md para reactivarlo y cargar el corpus completo.
+
 // ---------- Webhooks del bot (fase 5: creación por WhatsApp) ----------
 
 async function buscarUsuarioPorTelefono(telefono: string): Promise<Usuario | null> {
