@@ -4,7 +4,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, onRequest, CallableRequest } from 'firebase-functions/v2/https';
 import { crearEjecutor } from './agente/ejecutor';
-import { conversarConPortteo } from './agente/portteo';
+import { conversarConPortteoGemini } from './agente/portteoGemini';
 import { normalizarWebhookTelegram } from './canal/telegram';
 import { normalizarWebhookWhatsapp } from './canal/whatsapp';
 import { ROLES_ADMIN, ROLES_OPERADOR, Rol, Usuario } from './dominio/tipos';
@@ -19,7 +19,9 @@ import {
 initializeApp();
 const db = getFirestore();
 
-const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+// LLM de Portteo: Gemini (capa gratuita de Google AI Studio). El adaptador de
+// Claude (agente/portteo.ts) queda disponible por si se cambia de proveedor.
+const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
 const REGION = 'us-central1';
 
 // ---------- Autenticación de callables (identidad web = correo) ----------
@@ -62,7 +64,7 @@ export const crearCotizacion = onCall({ region: REGION }, async (req) => {
 // vía herramientas) y regresa la respuesta. El documento se actualiza solo en
 // la web por los listeners de Firestore.
 export const portteo = onCall(
-  { region: REGION, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 300, memory: '512MiB' },
+  { region: REGION, secrets: [GEMINI_API_KEY], timeoutSeconds: 300, memory: '512MiB' },
   async (req) => {
     const usuario = await usuarioDesdeAuth(req);
     exigirRol(usuario, ROLES_OPERADOR);
@@ -95,9 +97,8 @@ export const portteo = onCall(
       { role: 'user' as const, content: mensaje },
     ];
 
-    const cliente = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
-    const respuesta = await conversarConPortteo({
-      cliente,
+    const respuesta = await conversarConPortteoGemini({
+      apiKey: GEMINI_API_KEY.value(),
       ejecutor: crearEjecutor(db),
       contexto: { correo: usuario.correo, rol: usuario.rol, cotizacionId, versionId },
       historial,
