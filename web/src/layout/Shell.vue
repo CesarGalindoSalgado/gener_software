@@ -14,7 +14,7 @@ const esAdmin = computed(() => ROLES_ADMIN.includes(rol.value));
 const nav = computed(() => [
   { nombre: 'Cotizaciones', ruta: 'cotizaciones', icono: FileText, visible: true },
   { nombre: 'Plantillas', ruta: 'cotizaciones', icono: LayoutTemplate, visible: true },
-  { nombre: 'Usuarios', ruta: 'cotizaciones', icono: Users, visible: esAdmin.value },
+  { nombre: 'Usuarios', ruta: 'usuarios', icono: Users, visible: esAdmin.value },
   { nombre: 'Recordatorios', ruta: 'cotizaciones', icono: BellRing, visible: esAdmin.value },
 ]);
 

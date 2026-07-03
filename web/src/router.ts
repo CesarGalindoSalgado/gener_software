@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { esperarCarga, sesion } from './sesion';
+import { ROLES_ADMIN } from './dominio/tipos';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +31,12 @@ const router = createRouter({
           name: 'taller',
           component: () => import('./vistas/Taller.vue'),
         },
+        {
+          path: 'usuarios',
+          name: 'usuarios',
+          component: () => import('./vistas/Usuarios.vue'),
+          meta: { soloAdmin: true },
+        },
       ],
     },
   ],
@@ -44,6 +51,10 @@ router.beforeEach(async (to) => {
     return { name: 'login' };
   }
   if (to.name === 'login' && autenticado) {
+    return { name: 'cotizaciones' };
+  }
+  // Rutas solo para admin (superAdmin/dueño): la de usuarios es solo superAdmin.
+  if (to.meta.soloAdmin && !ROLES_ADMIN.includes(sesion.usuario?.rol ?? 'trabajador')) {
     return { name: 'cotizaciones' };
   }
   return true;

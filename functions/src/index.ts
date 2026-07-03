@@ -17,6 +17,7 @@ import {
   guardarMensajeChat,
   leerHistorialChat,
 } from './servicios/cotizaciones';
+import { actualizarUsuario, crearUsuario } from './servicios/usuarios';
 
 initializeApp();
 const db = getFirestore();
@@ -153,6 +154,53 @@ export const aprobar = onCall({ region: REGION }, async (req) => {
       throw new HttpsError(codigo, e.message);
     }
     throw e;
+  }
+});
+
+// ---------- Gestión de usuarios (solo superAdmin) ----------
+
+export const crearUsuarioCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ['superAdmin']);
+
+  const correo = String(req.data?.correo ?? '').trim();
+  const nombre = String(req.data?.nombre ?? '').trim();
+  const rol = String(req.data?.rol ?? '') as Rol;
+  const password = String(req.data?.password ?? '');
+  const telefono = req.data?.telefono ? String(req.data.telefono) : undefined;
+
+  if (!correo || !nombre || !rol) {
+    throw new HttpsError('invalid-argument', 'Faltan correo, nombre o rol.');
+  }
+  try {
+    await crearUsuario(db, { correo, nombre, rol, password, telefono });
+    return { ok: true };
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear el usuario.');
+  }
+});
+
+export const actualizarUsuarioCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ['superAdmin']);
+
+  const correo = String(req.data?.correo ?? '').trim();
+  if (!correo) throw new HttpsError('invalid-argument', 'Falta el correo.');
+
+  // No permitir que el superAdmin se auto-desactive por accidente.
+  if (correo.toLowerCase() === usuario.correo.toLowerCase() && req.data?.activo === false) {
+    throw new HttpsError('failed-precondition', 'No puedes desactivar tu propia cuenta.');
+  }
+  try {
+    await actualizarUsuario(db, correo, {
+      nombre: req.data?.nombre,
+      rol: req.data?.rol as Rol | undefined,
+      activo: req.data?.activo,
+      telefono: req.data?.telefono,
+    });
+    return { ok: true };
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo actualizar.');
   }
 });
 
