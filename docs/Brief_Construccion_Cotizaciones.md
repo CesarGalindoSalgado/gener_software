@@ -154,7 +154,7 @@ Herramientas expuestas al LLM: `buscarHistorico(cliente, concepto)`, `crearBorra
 
 ### 5.7 Porttea-Gener — administración
 - **Usuarios:** alta/edición de usuarios y roles.
-- **Plantillas:** CRUD de bloques guardados (las 3 iniciales + nuevas).
+- **Plantillas:** CRUD de bloques guardados. Las 3 iniciales vienen pre-cargadas del seed [docs/muestras/plantillas-gener.json](muestras/plantillas-gener.json) (conceptos completos; el `precioSugerido` lo define Gabriel).
 - **Cotizaciones:** listado con estatus.
 - **Seguimiento:** foco en `enviada` sin cerrar, con antigüedad ("enviada hace X días", contada desde `fechaEnvio` = aprobación).
 - **Hecho cuando:** el dueño puede crear un usuario, editar una plantilla y ver la lista de cotizaciones con su antigüedad, todo desde Porttea-Gener.

@@ -98,12 +98,65 @@ Solo la lista blanca de números puede invocar a Portteo.
 
 ## 6. Plantillas de servicios (bloques guardados)
 
-Tres plantillas iniciales (crecen y se editan desde Porttea-Gener):
-1. Suministro de radiador nuevo
-2. Mantenimiento preventivo
-3. Reparación de radiador
+Tres plantillas iniciales (crecen y se editan desde Porttea-Gener). Datos semilla listos para cargar en `plantillas-gener.json`. El **precio sugerido de cada plantilla lo define Gabriel** (hoy no viene en las listas); las líneas de abajo son el alcance (van sin precio individual, el precio es a nivel bloque).
 
-Al pedir "hazme una cotización de reparación de radiador", Portteo inserta ese bloque en el borrador con su precio sugerido, y el dueño lo confirma o ajusta. Requiere CRUD de plantillas en Porttea-Gener.
+**1. Suministro de radiador nuevo**
+- Traslado a lugar de servicio con herramientas y equipos
+- Suministro de radiador de acuerdo a especificaciones del equipo
+- Puesta en fuera de servicio de grupo electrógeno para servicio
+- Drenado de anticongelante de sistema de enfriamiento de motor
+- Desmontaje mecánico de radiador de motor
+- Montaje de radiador nuevo
+- Montaje y conexión de mangueras de sistema de enfriamiento
+- Suministro de anticongelante drenado a sistema de enfriamiento
+- Prueba de funcionamiento de grupo electrógeno sin carga
+- Prueba de funcionamiento grupo electrógeno con carga
+
+**2. Mantenimiento preventivo**
+- Traslado al lugar del servicio
+- Suministro de aceite para motor a Diesel
+- Suministro de anticongelante trabajo pesado
+- Suministro de líquido electrolítico para batería
+- Suministro de desengrasante
+- Suministro de material de limpieza
+- Suministro de filtros de aceite según modelo de filtro
+- Suministro de filtros de combustible según modelo de filtro
+- Suministro de filtros de aire según modelo de filtro
+- Suministro de líquido electrolítico en depósito de batería
+- Retirar y contener aceite usado de generador en contenedor
+- Cambio de filtro de aceite
+- Retirar y contener líquido anticongelante usado de generador
+- Cambio de filtro de anticongelante
+- Montaje y conexión de mangueras de sistema de enfriamiento
+- Cambio de filtro de combustible y purga de sistema
+- Carga de aceite a depósito de motor de combustión
+- Carga de anticongelante a depósito de motor de combustión
+- Cambio de batería y limpieza de terminales
+- Limpieza general a motor con desengrasante
+- Limpieza general a generador eléctrico
+- Revisión de instalación eléctrica de control de motor de combustión
+- Revisión de condiciones de tapón de radiador
+- Pruebas de aislamiento con Megger a devanados de generador
+- Reapriete de tornillería de conexiones de potencia a generador
+- Reapriete de tornillería de conexiones de potencia a transferencia
+- Reapriete de tornillería de conexiones de control a generador
+- Pruebas de funcionamiento a cargador de baterías
+- Pruebas de funcionamiento a generador sin carga
+- Pruebas de funcionamiento a generador con carga
+
+**3. Reparación de radiador**
+- Traslado a lugar de servicio con herramientas y equipos
+- Puesta en fuera de servicio de grupo electrógeno para servicio
+- Drenado de anticongelante de sistema de enfriamiento de motor
+- Desmontaje mecánico de radiador de motor
+- Traslado a taller de servicio para reparación
+- Traslado a sitio para montaje de radiador
+- Montaje y conexión de mangueras de sistema de enfriamiento
+- Suministro de anticongelante drenado a sistema de enfriamiento
+- Prueba de funcionamiento de grupo electrógeno sin carga
+- Prueba de funcionamiento grupo electrógeno con carga
+
+Al pedir "hazme una cotización de reparación de radiador", Portteo inserta ese bloque en el borrador con su precio sugerido, y el dueño lo confirma o ajusta. Requiere CRUD de plantillas en Porttea-Gener. La lista completa y exacta vive en `docs/muestras/plantillas-gener.json`.
 
 ---
 
