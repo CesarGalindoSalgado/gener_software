@@ -3,12 +3,14 @@ import { aprobarCotizacion } from '../servicios/aprobar';
 import {
   actualizarDatos,
   agregarBloque,
+  agregarDesdePlantilla,
   ajustarPrecioBloque,
   buscarHistorico,
   clonarComoBase,
   consultarCotizaciones,
   crearBorrador,
   crearRecordatorio,
+  listarPlantillas,
   quitarBloque,
 } from '../servicios/cotizaciones';
 import { ContextoEjecucion, EjecutorHerramientas } from './herramientas';
@@ -69,6 +71,20 @@ export function crearEjecutor(db: Firestore): EjecutorHerramientas {
             Number(input.nuevoImporte ?? 0)
           );
           return JSON.stringify({ subtotal: res.subtotal, iva: res.iva, total: res.total });
+        }
+
+        case 'listarPlantillas': {
+          const res = await listarPlantillas(db);
+          return JSON.stringify(res.length ? res : { aviso: 'No hay plantillas cargadas todavía.' });
+        }
+
+        case 'agregarDesdePlantilla': {
+          const res = await agregarDesdePlantilla(db, refsDeContexto(ctx), {
+            nombre: input.nombre as string | undefined,
+            plantillaId: input.plantillaId as string | undefined,
+            importe: input.importe as number | undefined,
+          });
+          return JSON.stringify({ bloques: res.partidas.length, subtotal: res.subtotal, iva: res.iva, total: res.total });
         }
 
         case 'quitarBloque': {

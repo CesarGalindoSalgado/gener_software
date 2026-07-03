@@ -100,6 +100,25 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'listarPlantillas',
+    description:
+      'Lista las plantillas de servicio guardadas (nombre, descripción, precio sugerido y líneas de alcance). Úsala cuando el usuario pida un servicio con nombre de plantilla (ej. "mantenimiento preventivo", "reparación de radiador").',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'agregarDesdePlantilla',
+    description:
+      'Inserta una plantilla como bloque en la cotización en edición, con todas sus líneas de alcance. Da el precio si el usuario lo dictó o si la plantilla tiene precioSugerido; si no hay precio, pregúntalo al usuario (no inventes).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Nombre de la plantilla (ej. "Mantenimiento preventivo")' },
+        importe: { type: 'number', description: 'Precio del bloque, si el usuario lo dictó' },
+      },
+      required: ['nombre'],
+    },
+  },
+  {
     name: 'quitarBloque',
     description: 'Elimina una partida (bloque) de la versión en edición y recalcula los totales.',
     input_schema: {

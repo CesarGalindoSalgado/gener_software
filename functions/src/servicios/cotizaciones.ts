@@ -231,6 +231,50 @@ export async function crearRecordatorio(
   return { recordatorioId: ref.id };
 }
 
+// ---------- Plantillas de servicio ----------
+
+export async function listarPlantillas(db: Firestore): Promise<unknown[]> {
+  const q = await db.collection('plantillas').where('activa', '==', true).get();
+  return q.docs.map((d) => {
+    const p = d.data();
+    return {
+      plantillaId: d.id,
+      nombre: p.nombre,
+      descripcion: p.descripcion ?? null,
+      precioSugerido: p.precioSugerido ?? null,
+      lineas: p.lineas ?? [],
+    };
+  });
+}
+
+// Inserta una plantilla como bloque en la versión en edición. El precio viene
+// del argumento (dictado por el usuario o el precioSugerido de la plantilla);
+// si no hay precio, se inserta en 0 y Portteo debe pedirlo.
+export async function agregarDesdePlantilla(
+  db: Firestore,
+  refs: RefsBorrador,
+  params: { nombre?: string; plantillaId?: string; importe?: number }
+) {
+  let plantilla: FirebaseFirestore.DocumentData | undefined;
+  if (params.plantillaId) {
+    const snap = await db.doc(`plantillas/${params.plantillaId}`).get();
+    plantilla = snap.data();
+  } else if (params.nombre) {
+    const q = await db.collection('plantillas').where('nombre', '==', params.nombre).limit(1).get();
+    plantilla = q.empty ? undefined : q.docs[0].data();
+  }
+  if (!plantilla) throw new Error('No se encontró la plantilla indicada.');
+
+  const importe = params.importe ?? plantilla.precioSugerido ?? 0;
+  return agregarBloque(db, refs, {
+    titulo: plantilla.nombre,
+    descripcion: plantilla.descripcion ?? undefined,
+    lineas: plantilla.lineas ?? [],
+    cantidad: 1,
+    importe,
+  });
+}
+
 // Mensajería del chat del taller (subcolección de la cotización)
 export async function guardarMensajeChat(
   db: Firestore,
