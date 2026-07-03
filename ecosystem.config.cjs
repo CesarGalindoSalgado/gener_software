@@ -17,5 +17,17 @@ module.exports = {
       watch: false,
       env: { NODE_ENV: 'development' },
     },
+    {
+      // Bot de WhatsApp (Baileys). Vincula el número la PRIMERA vez corriendo
+      //   cd bot && npm start
+      // y escaneando el QR; ya vinculado, se puede manejar con PM2.
+      // Config sensible en bot/.env (WEBHOOK_URL + WHATSAPP_WEBHOOK_SECRET).
+      name: 'gener-bot',
+      cwd: path.join(__dirname, 'bot'),
+      script: path.join(__dirname, 'bot', 'index.js'),
+      node_args: '--env-file-if-exists=.env',
+      autorestart: true,
+      watch: false,
+    },
   ],
 };
