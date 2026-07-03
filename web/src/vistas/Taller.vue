@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref, watch, nextTick } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { ArrowLeft, Plus, Trash2, MessageSquare, Send, LoaderCircle, FileDown } from 'lucide-vue-next';
+import { ArrowLeft, Plus, Trash2, MessageSquare, Send, LoaderCircle, FileDown, GitBranch } from 'lucide-vue-next';
 import DocumentoCotizacion from '../components/DocumentoCotizacion.vue';
 import type { BorradorCotizacion } from '../dominio/tipos';
 import { ROLES_ADMIN } from '../dominio/tipos';
 import { sesion } from '../sesion';
 import {
   aprobarCotizacion,
+  crearRevision,
   enviarMensajePortteo,
   suscribirChat,
   suscribirCotizacion,
@@ -105,6 +106,25 @@ function descargarPdf() {
   window.open(`/imprimir/${cotizacionId.value}`, '_blank');
 }
 
+const puedeRevisar = computed(
+  () => cot.value && (cot.value.estatus === 'enviada' || cot.value.estatus === 'rechazada')
+);
+const revisando = ref(false);
+async function nuevaRevision() {
+  if (!cotizacionId.value || revisando.value) return;
+  if (!confirm('¿Crear una nueva revisión? Se copia el contenido a una versión nueva (mismo folio) y vuelve a borrador para editar.')) return;
+  revisando.value = true;
+  error.value = '';
+  try {
+    await crearRevision(cotizacionId.value);
+    // El documento y el estatus se actualizan solos por los listeners.
+  } catch (e: unknown) {
+    error.value = (e as { message?: string })?.message ?? 'No se pudo crear la revisión.';
+  } finally {
+    revisando.value = false;
+  }
+}
+
 async function aprobar() {
   if (!cotizacionId.value || aprobando.value) return;
   if (!confirm('¿Aprobar esta cotización? Se asignará el folio definitivo.')) return;
@@ -155,6 +175,7 @@ function editarLineas(i: number, texto: string) {
         <p class="text-sm text-ink-2">
           {{ cotizacionId ? (cot?.cliente?.nombre ?? 'Cargando…') : 'Modo de prueba (sin guardar)' }}
           <span v-if="cot?.folio" class="font-mono text-brand-text ml-2">{{ cot.folio }}</span>
+          <span v-if="ver?.rev" class="font-mono text-muted-ink ml-1">Rev. {{ ver.rev }}</span>
         </p>
       </div>
       <div class="ml-auto flex items-center gap-3">
@@ -168,6 +189,15 @@ function editarLineas(i: number, texto: string) {
             'bg-[#f9e6ea] text-danger': cot.estatus === 'rechazada',
           }"
         >{{ cot.estatus }}</span>
+        <button
+          v-if="puedeRevisar"
+          @click="nuevaRevision"
+          :disabled="revisando"
+          class="h-9 px-3 rounded-md border border-line-strong text-sm font-medium text-ink-2 hover:border-accent hover:text-accent flex items-center gap-1.5 disabled:opacity-50"
+          title="Crear una revisión (Rev. siguiente) con el mismo folio"
+        >
+          <GitBranch :size="15" /> {{ revisando ? 'Creando…' : 'Nueva revisión' }}
+        </button>
         <button
           v-if="cotizacionId && cot"
           @click="descargarPdf"

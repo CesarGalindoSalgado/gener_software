@@ -16,6 +16,7 @@ import { EstatusCotizacion } from './dominio/tipos';
 import { escribirBitacora } from './servicios/bitacora';
 import {
   crearBorrador,
+  crearRevision,
   guardarMensajeChat,
   leerHistorialChat,
 } from './servicios/cotizaciones';
@@ -157,6 +158,19 @@ export const aprobar = onCall({ region: REGION }, async (req) => {
       throw new HttpsError(codigo, e.message);
     }
     throw e;
+  }
+});
+
+// ---------- Revisiones (Rev. B/C con el mismo folio) ----------
+export const crearRevisionCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const cotizacionId = String(req.data?.cotizacionId ?? '');
+  if (!cotizacionId) throw new HttpsError('invalid-argument', 'Falta cotizacionId.');
+  try {
+    return await crearRevision(db, cotizacionId);
+  } catch (e) {
+    throw new HttpsError('failed-precondition', e instanceof Error ? e.message : 'No se pudo crear la revisión.');
   }
 });
 

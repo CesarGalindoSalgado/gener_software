@@ -1,5 +1,6 @@
 import { FieldValue, Firestore, Timestamp } from 'firebase-admin/firestore';
 import { calcularTotales } from '../dominio/totales';
+import { siguienteRev } from '../dominio/folio';
 import { Partida } from '../dominio/tipos';
 
 // Servicios de dominio sobre Firestore (Admin SDK). Los invoca el ejecutor de
@@ -193,6 +194,52 @@ export async function clonarComoBase(
     await mutarPartidas(db, refs, () => partidas);
   }
   return refs;
+}
+
+// Crea una revisión (Rev. B, C…) de una cotización YA enviada: copia las
+// partidas de la versión actual a una versión nueva, avanza revActual y regresa
+// la cotización a 'borrador' para editarla. El FOLIO NO CAMBIA. Al re-aprobar,
+// aprobarCotizacion no consume folio nuevo.
+export async function crearRevision(
+  db: Firestore,
+  cotizacionId: string
+): Promise<{ versionId: string; rev: string }> {
+  const cotRef = db.doc(`cotizaciones/${cotizacionId}`);
+  const cotSnap = await cotRef.get();
+  if (!cotSnap.exists) throw new Error('No existe la cotización.');
+  const cot = cotSnap.data()!;
+
+  if (!cot.folio) {
+    throw new Error('Solo se puede revisar una cotización ya enviada (con folio).');
+  }
+  if (!['enviada', 'rechazada'].includes(cot.estatus)) {
+    throw new Error(`No se puede crear una revisión desde estatus "${cot.estatus}".`);
+  }
+
+  const verActualSnap = await db.doc(`cotizaciones/${cotizacionId}/versiones/${cot.versionActualId}`).get();
+  const v = verActualSnap.data() ?? { partidas: [] };
+  const nuevaRev = siguienteRev(cot.revActual ?? 'A');
+
+  const nuevaVerRef = await cotRef.collection('versiones').add({
+    rev: nuevaRev,
+    estatus: 'borrador',
+    partidas: (v.partidas ?? []) as Partida[],
+    subtotal: v.subtotal ?? 0,
+    iva: v.iva ?? 0,
+    total: v.total ?? 0,
+    formaPago: v.formaPago ?? '',
+    tiempoEntrega: v.tiempoEntrega ?? '',
+    fecha: FieldValue.serverTimestamp(),
+  });
+
+  // Mismo folio; vuelve a borrador; apunta a la nueva versión.
+  await cotRef.update({
+    versionActualId: nuevaVerRef.id,
+    revActual: nuevaRev,
+    estatus: 'borrador',
+  });
+
+  return { versionId: nuevaVerRef.id, rev: nuevaRev };
 }
 
 export async function buscarHistorico(

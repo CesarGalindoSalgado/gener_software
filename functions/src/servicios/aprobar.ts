@@ -53,12 +53,18 @@ export async function aprobarCotizacion(
       throw new ErrorAprobacion(`No existe la cotización ${params.cotizacionId}.`, 'no-existe');
     }
     const cot = cotSnap.data()!;
-    if (cot.folio) {
-      // El folio se asigna UNA sola vez; una revisión no consume folio nuevo.
-      throw new ErrorAprobacion(`La cotización ya tiene folio ${cot.folio}.`, 'ya-tiene-folio');
-    }
+    // Solo un borrador se aprueba (una 'enviada' no se re-aprueba). Cubre tanto
+    // la primera aprobación como la de una revisión (que vuelve a 'borrador').
     validarTransicion(cot.estatus, 'enviada');
 
+    // Revisión (Rev. B, C…): la cotización YA tiene folio. Se re-aprueba sin
+    // consumir folio nuevo — el folio vive con la cotización.
+    if (cot.folio) {
+      tx.update(cotRef, { estatus: 'enviada', fechaEnvio: Timestamp.fromDate(ahora) });
+      return { folio: cot.folio as string, consecutivo: -1 };
+    }
+
+    // Primera aprobación: asignar folio del contador anual (transacción).
     // MM/YY del mes de aprobación en la zona del negocio (Morelos), no en UTC.
     const { anio, mes } = partesFechaNegocio(ahora);
     const contadorRef = db.doc(`counters/${nombreContador(anio)}`);

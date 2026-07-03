@@ -102,12 +102,24 @@ describe('aprobarCotizacion', () => {
     expect(r.folio).toMatch(/^GPC-0726-\d{3}$/);
   });
 
-  it('no re-aprueba: una cotización con folio no consume folio nuevo', async () => {
+  it('no re-aprueba una cotización ya enviada (transición inválida)', async () => {
     const db = base();
     await aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA });
     await expect(
       aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA })
-    ).rejects.toThrowError('ya tiene folio');
+    ).rejects.toThrowError('Transición de estatus inválida');
+  });
+
+  it('re-aprobar una revisión (borrador con folio) NO consume folio nuevo', async () => {
+    const db = base();
+    const docs = (db as never as { docs: Map<string, Record<string, unknown>> }).docs;
+    // Simula una revisión: borrador que ya conserva su folio.
+    docs.set('cotizaciones/cot1', { folio: 'GPC-0726-041', estatus: 'borrador', clienteId: 'c1' });
+    docs.set('counters/folio_2026', { ultimo: 41 });
+    const r = await aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA });
+    expect(r.folio).toBe('GPC-0726-041'); // mismo folio
+    expect(docs.get('counters/folio_2026')!.ultimo).toBe(41); // el contador NO avanzó
+    expect(docs.get('cotizaciones/cot1')!.estatus).toBe('enviada');
   });
 
   it('solo un borrador puede aprobarse', async () => {
