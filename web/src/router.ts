@@ -11,6 +11,12 @@ const router = createRouter({
       meta: { publica: true },
     },
     {
+      // Vista de impresión (fuera del Shell: sin sidebar). Requiere sesión.
+      path: '/imprimir/:id',
+      name: 'imprimir',
+      component: () => import('./vistas/Imprimir.vue'),
+    },
+    {
       path: '/',
       component: () => import('./layout/Shell.vue'),
       children: [

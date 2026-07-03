@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref, watch, nextTick } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { ArrowLeft, Plus, Trash2, MessageSquare, Send, LoaderCircle } from 'lucide-vue-next';
+import { ArrowLeft, Plus, Trash2, MessageSquare, Send, LoaderCircle, FileDown } from 'lucide-vue-next';
 import DocumentoCotizacion from '../components/DocumentoCotizacion.vue';
 import type { BorradorCotizacion } from '../dominio/tipos';
 import { ROLES_ADMIN } from '../dominio/tipos';
@@ -99,6 +99,12 @@ async function enviar() {
   }
 }
 
+function descargarPdf() {
+  if (!cotizacionId.value) return;
+  // Abre la vista de impresión limpia en pestaña nueva (auto-lanza el diálogo).
+  window.open(`/imprimir/${cotizacionId.value}`, '_blank');
+}
+
 async function aprobar() {
   if (!cotizacionId.value || aprobando.value) return;
   if (!confirm('¿Aprobar esta cotización? Se asignará el folio definitivo.')) return;
@@ -162,6 +168,14 @@ function editarLineas(i: number, texto: string) {
             'bg-[#f9e6ea] text-danger': cot.estatus === 'rechazada',
           }"
         >{{ cot.estatus }}</span>
+        <button
+          v-if="cotizacionId && cot"
+          @click="descargarPdf"
+          class="h-9 px-3 rounded-md border border-line-strong text-sm font-medium text-ink-2 hover:border-accent hover:text-accent flex items-center gap-1.5"
+          title="Abrir la vista de impresión para guardar como PDF"
+        >
+          <FileDown :size="15" /> PDF
+        </button>
         <button
           v-if="cotizacionId && esAdmin"
           @click="aprobar"
