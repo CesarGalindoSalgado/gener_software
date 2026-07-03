@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
+import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall, onRequest, CallableRequest } from 'firebase-functions/v2/https';
 import { crearEjecutor } from './agente/ejecutor';
 import { conversarConPortteoGemini } from './agente/portteoGemini';
@@ -10,6 +11,7 @@ import { normalizarWebhookWhatsapp } from './canal/whatsapp';
 import { ROLES_ADMIN, ROLES_OPERADOR, Rol, Usuario } from './dominio/tipos';
 import { procesarMensaje } from './router/router';
 import { aprobarCotizacion, ErrorAprobacion } from './servicios/aprobar';
+import { escribirBitacora } from './servicios/bitacora';
 import {
   crearBorrador,
   guardarMensajeChat,
@@ -119,6 +121,31 @@ export const aprobar = onCall({ region: REGION }, async (req) => {
 
   try {
     const res = await aprobarCotizacion(db, { cotizacionId, correoAprobador: usuario.correo });
+
+    // Efecto posterior (idempotente): bitácora de precios. Fuera de la
+    // transacción; si falla, el folio ya quedó y se puede reintentar.
+    try {
+      const cotSnap = await db.doc(`cotizaciones/${cotizacionId}`).get();
+      const cot = cotSnap.data()!;
+      const verSnap = await db.doc(`cotizaciones/${cotizacionId}/versiones/${cot.versionActualId}`).get();
+      const ver = verSnap.data()!;
+      await escribirBitacora(db, {
+        cotizacionId,
+        versionId: cot.versionActualId,
+        clienteId: cot.clienteId,
+        clienteNombre: cot.cliente?.nombre ?? '',
+        folio: res.folio,
+        fecha: ver.fecha?.toDate?.() ?? new Date(),
+        partidas: ver.partidas ?? [],
+      });
+      // Sugerir la última forma de pago del cliente en la próxima cotización.
+      if (cot.clienteId && ver.formaPago) {
+        await db.doc(`clientes/${cot.clienteId}`).set({ ultimaFormaPago: ver.formaPago }, { merge: true });
+      }
+    } catch (efectoErr) {
+      logger.error('Aprobación OK pero falló la bitácora (reintentable):', efectoErr);
+    }
+
     return res;
   } catch (e) {
     if (e instanceof ErrorAprobacion) {

@@ -199,21 +199,31 @@ export async function buscarHistorico(
   db: Firestore,
   filtro: { cliente?: string; concepto: string }
 ): Promise<unknown[]> {
-  // MVP: filtra por cliente exacto si viene; el match fino del concepto lo
-  // hace el LLM sobre los resultados. El histórico se llena en la fase 3 (ETL).
+  // Filtra por cliente si viene; el match fino del concepto lo hace el LLM
+  // sobre los resultados. Ordena por fecha desc para que lo más reciente
+  // (lo "último cobrado") quede primero.
+  const col = db.collection('precios_historicos');
   let q;
-  if (filtro.cliente) {
-    q = await db
-      .collection('precios_historicos')
-      .where('clienteNombre', '==', filtro.cliente.trim())
-      .limit(25)
-      .get();
-  } else {
-    q = await db.collection('precios_historicos').limit(25).get();
+  try {
+    q = filtro.cliente
+      ? await col.where('clienteNombre', '==', filtro.cliente.trim()).orderBy('fecha', 'desc').limit(25).get()
+      : await col.orderBy('fecha', 'desc').limit(25).get();
+  } catch {
+    // Si falta el índice compuesto, cae a consulta simple sin ordenar.
+    q = filtro.cliente
+      ? await col.where('clienteNombre', '==', filtro.cliente.trim()).limit(25).get()
+      : await col.limit(25).get();
   }
   return q.docs.map((d) => {
     const p = d.data();
-    return { concepto: p.concepto, precio: p.precio, cliente: p.clienteNombre, equipo: p.equipo ?? null };
+    return {
+      concepto: p.concepto,
+      precio: p.precio,
+      cliente: p.clienteNombre,
+      equipo: p.equipo ?? null,
+      fecha: p.fecha?.toDate?.()?.toISOString?.() ?? null,
+      folio: p.folio ?? null,
+    };
   });
 }
 
