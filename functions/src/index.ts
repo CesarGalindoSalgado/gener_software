@@ -5,6 +5,7 @@ import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall, onRequest, CallableRequest } from 'firebase-functions/v2/https';
 import { crearEjecutor } from './agente/ejecutor';
+import { HERRAMIENTAS } from './agente/herramientas';
 import { conversarConPortteoGemini } from './agente/portteoGemini';
 import { normalizarWebhookTelegram } from './canal/telegram';
 import { normalizarWebhookWhatsapp } from './canal/whatsapp';
@@ -22,7 +23,15 @@ import {
 } from './servicios/cotizaciones';
 import { actualizarUsuario, crearUsuario } from './servicios/usuarios';
 import { actualizarPlantilla, crearPlantilla } from './servicios/plantillas';
-import { contarPendientes, crearRecordatorioPortal, marcarRecordatorio } from './servicios/recordatorios';
+import { crearRecordatorioPortal, marcarRecordatorio, pendientesPorDueno } from './servicios/recordatorios';
+import {
+  encolarSalienteUnico,
+  guardarMensajeWA,
+  leerHistorialWA,
+  marcarSaliente,
+  salientesPendientes,
+} from './servicios/whatsapp';
+import { MensajeEntrante } from './canal/tipos';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 initializeApp();
@@ -286,22 +295,39 @@ export const marcarRecordatorioCallable = onCall({ region: REGION }, async (req)
 });
 
 // Scheduler: lunes, miércoles y viernes 9:00 am (Morelos), solo si hay
-// pendientes. La ENTREGA del aviso se conecta a WhatsApp en la fase 5; por
-// ahora se registra en logs y queda listo el mecanismo.
+// pendientes. Encola un aviso por cada dueño con teléfono; el bot lo entrega
+// por WhatsApp (endpoint colaSalientes). El id determinista evita duplicar el
+// aviso del día si el scheduler reintenta.
 export const avisoRecordatorios = onSchedule(
   { schedule: '0 9 * * 1,3,5', timeZone: 'America/Mexico_City', region: REGION },
   async () => {
-    const pendientes = await contarPendientes(db);
-    if (pendientes === 0) {
-      logger.info('Aviso L/M/V: sin recordatorios pendientes, no se envía nada.');
+    const porDueno = await pendientesPorDueno(db);
+    const correos = Object.keys(porDueno);
+    if (correos.length === 0) {
+      logger.info('Aviso L/M/V: sin recordatorios pendientes, no se encola nada.');
       return;
     }
-    const mensaje =
-      pendientes === 1
-        ? 'Tienes 1 cotización pendiente por armar. ¡La haces en 5 minutos, no te rindas! 💪'
-        : `Tienes ${pendientes} cotizaciones pendientes por armar. ¡Vamos, avanza aunque sea una hoy! 💪`;
-    // TODO fase 5: enviar `mensaje` por WhatsApp al dueño.
-    logger.info(`Aviso L/M/V (pendiente de entregar por WhatsApp): ${mensaje}`);
+
+    // Fecha en Morelos (UTC-6) para armar la clave del día.
+    const ahora = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const ymd = ahora.toISOString().slice(0, 10).replace(/-/g, '');
+
+    for (const correo of correos) {
+      const n = porDueno[correo];
+      const snap = await db.doc(`usuarios/${correo}`).get();
+      const u = snap.data();
+      if (!u?.telefono || u.activo === false) {
+        logger.info(`Aviso L/M/V: ${correo} tiene ${n} pendientes pero sin teléfono/activo; no se entrega.`);
+        continue;
+      }
+      const texto =
+        n === 1
+          ? 'Tienes 1 cotización pendiente por armar. ¡La haces en 5 minutos, no te rindas! 💪'
+          : `Tienes ${n} cotizaciones pendientes por armar. ¡Vamos, avanza aunque sea una hoy! 💪`;
+      const id = `aviso_${correo.replace(/[^a-zA-Z0-9]/g, '_')}_${ymd}`;
+      const nuevo = await encolarSalienteUnico(db, id, { telefono: u.telefono, texto, motivo: 'recordatorio' });
+      logger.info(nuevo ? `Aviso L/M/V encolado para ${correo} (${n}).` : `Aviso L/M/V ya existía hoy para ${correo}.`);
+    }
   }
 );
 
@@ -387,8 +413,56 @@ export const estadoBot = onRequest(
   }
 );
 
+// Portteo por WhatsApp: modo consulta. Puede buscar precios en el histórico,
+// consultar cotizaciones pasadas, listar plantillas y guardar recordatorios.
+// NO arma ni aprueba cotizaciones por aquí (eso es en Porttea-Gener, la web).
+const HERRAMIENTAS_WHATSAPP = new Set([
+  'buscarHistorico',
+  'consultarCotizacion',
+  'listarPlantillas',
+  'crearRecordatorio',
+]);
+
+const SYSTEM_WHATSAPP = [
+  'Eres Portteo, el asistente de cotizaciones de G-ener (Gener Power & Control), respondiendo por WhatsApp.',
+  'Sé breve y claro (es un chat de teléfono). Responde en español, con calidez pero al grano.',
+  'Puedes: buscar precios en el histórico, consultar cotizaciones pasadas (por folio o cliente),',
+  'listar las plantillas de servicios y guardar recordatorios ("recuérdame cotizar a X").',
+  'NO inventas precios: solo los del histórico. Si no hay dato, dilo y sugiere revisarlo en la web.',
+  'Para ARMAR o APROBAR una cotización, indícale al usuario que lo haga en Porttea-Gener (la plataforma web),',
+  'porque ahí ve el documento en vivo; por WhatsApp solo consultas y recordatorios.',
+].join(' ');
+
+// Corre a Portteo para un mensaje de WhatsApp, guardando el historial por
+// teléfono para que tenga memoria de la conversación.
+async function conversarPortteoWhatsApp(usuario: Usuario, mensaje: MensajeEntrante): Promise<string> {
+  const telefono = mensaje.telefono;
+  const historialPrevio = await leerHistorialWA(db, telefono, 12);
+  await guardarMensajeWA(db, telefono, { rol: 'usuario', texto: mensaje.texto });
+
+  const historial: Anthropic.MessageParam[] = [
+    ...historialPrevio.map((m) => ({
+      role: m.rol === 'usuario' ? ('user' as const) : ('assistant' as const),
+      content: m.texto,
+    })),
+    { role: 'user' as const, content: mensaje.texto },
+  ];
+
+  const respuesta = await conversarConPortteoGemini({
+    apiKey: GEMINI_API_KEY.value(),
+    ejecutor: crearEjecutor(db),
+    contexto: { correo: usuario.correo, rol: usuario.rol },
+    historial,
+    herramientas: HERRAMIENTAS.filter((h) => HERRAMIENTAS_WHATSAPP.has(h.name)),
+    sistema: SYSTEM_WHATSAPP,
+  });
+
+  await guardarMensajeWA(db, telefono, { rol: 'portteo', texto: respuesta.texto });
+  return respuesta.texto;
+}
+
 export const webhookWhatsapp = onRequest(
-  { region: REGION, secrets: ['WHATSAPP_WEBHOOK_SECRET'] },
+  { region: REGION, secrets: ['WHATSAPP_WEBHOOK_SECRET', GEMINI_API_KEY], timeoutSeconds: 120, memory: '512MiB' },
   async (req, res) => {
     if (req.method !== 'POST') {
       res.status(405).send('Método no permitido');
@@ -406,8 +480,40 @@ export const webhookWhatsapp = onRequest(
       return;
     }
 
-    const respuesta = await procesarMensaje({ buscarUsuario: buscarUsuarioPorTelefono }, mensaje);
+    const respuesta = await procesarMensaje(
+      { buscarUsuario: buscarUsuarioPorTelefono, conversar: conversarPortteoWhatsApp },
+      mensaje
+    );
     res.status(200).json(respuesta ?? { ignorado: true });
+  }
+);
+
+// Cola de salientes: el bot pregunta (GET) qué mensajes tiene que entregar y
+// avisa (POST) cuáles ya envió. Protegido con el mismo secreto del webhook.
+export const colaSalientes = onRequest(
+  { region: REGION, secrets: ['WHATSAPP_WEBHOOK_SECRET'] },
+  async (req, res) => {
+    if (req.get('x-webhook-secret') !== process.env.WHATSAPP_WEBHOOK_SECRET) {
+      res.status(401).send('No autorizado');
+      return;
+    }
+    if (req.method === 'GET') {
+      const mensajes = await salientesPendientes(db, 20);
+      res.status(200).json({ mensajes });
+      return;
+    }
+    if (req.method === 'POST') {
+      const id = String(req.body?.id ?? '');
+      if (!id) {
+        res.status(400).json({ error: 'Falta id' });
+        return;
+      }
+      const estatus = req.body?.estatus === 'error' ? 'error' : 'enviado';
+      await marcarSaliente(db, id, estatus, req.body?.motivo);
+      res.status(200).json({ ok: true });
+      return;
+    }
+    res.status(405).send('Método no permitido');
   }
 );
 

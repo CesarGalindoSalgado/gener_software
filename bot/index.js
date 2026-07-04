@@ -22,7 +22,13 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const WEBHOOK_SECRET = process.env.WHATSAPP_WEBHOOK_SECRET ?? '';
 // Endpoint donde publicamos el QR/estado para que el portal lo muestre.
 const ESTADO_URL = WEBHOOK_URL ? WEBHOOK_URL.replace(/webhookWhatsapp$/, 'estadoBot') : '';
+// Endpoint de la cola de salientes (avisos L/M/V que debemos entregar).
+const COLA_URL = WEBHOOK_URL ? WEBHOOK_URL.replace(/webhookWhatsapp$/, 'colaSalientes') : '';
+const INTERVALO_COLA_MS = 15000;
 const logger = pino({ level: 'silent' });
+
+// Socket activo (se setea al conectar). El poller de la cola lo usa para enviar.
+let socketActivo = null;
 
 async function publicarEstado(datos) {
   if (!ESTADO_URL) return;
@@ -67,6 +73,49 @@ async function enviarAlWebhook(payload) {
   return res.json().catch(() => ({}));
 }
 
+// Pregunta a la Cloud Function qué avisos hay pendientes, los entrega por
+// WhatsApp y marca cada uno como enviado. Corre solo si el socket está abierto.
+async function procesarColaSalientes() {
+  if (!COLA_URL || !socketActivo) return;
+  let mensajes = [];
+  try {
+    const res = await fetch(COLA_URL, {
+      method: 'GET',
+      headers: { 'x-webhook-secret': WEBHOOK_SECRET },
+    });
+    const data = await res.json().catch(() => ({}));
+    mensajes = Array.isArray(data?.mensajes) ? data.mensajes : [];
+  } catch (e) {
+    console.error('No se pudo leer la cola de salientes:', e?.message ?? e);
+    return;
+  }
+
+  for (const m of mensajes) {
+    if (!m?.id || !m?.telefono || !m?.texto) continue;
+    const jid = `${String(m.telefono).replace(/\D/g, '')}@s.whatsapp.net`;
+    try {
+      await socketActivo.sendMessage(jid, { text: m.texto });
+      await marcarSaliente(m.id, 'enviado');
+      console.log(`📤 Aviso entregado a ${m.telefono}.`);
+    } catch (e) {
+      console.error(`No se pudo entregar el aviso ${m.id}:`, e?.message ?? e);
+      await marcarSaliente(m.id, 'error', e?.message);
+    }
+  }
+}
+
+async function marcarSaliente(id, estatus, motivo) {
+  try {
+    await fetch(COLA_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-webhook-secret': WEBHOOK_SECRET },
+      body: JSON.stringify({ id, estatus, motivo: motivo ?? null }),
+    });
+  } catch (e) {
+    console.error('No se pudo marcar el saliente:', e?.message ?? e);
+  }
+}
+
 async function iniciar() {
   const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth'));
   const sock = makeWASocket({ auth: state, logger, printQRInTerminal: false });
@@ -81,10 +130,12 @@ async function iniciar() {
       publicarEstado({ estado: 'esperando_qr', qr });
     }
     if (connection === 'open') {
+      socketActivo = sock;
       console.log('✅ WhatsApp conectado. El bot está en línea.');
       publicarEstado({ estado: 'conectado', qr: null, numero: sock.user?.id?.split(':')[0] ?? null });
     }
     if (connection === 'close') {
+      socketActivo = null;
       const code = lastDisconnect?.error?.output?.statusCode;
       const cerroSesion = code === DisconnectReason.loggedOut;
       console.log(`Conexión cerrada (código ${code}).`);
@@ -125,6 +176,12 @@ async function iniciar() {
     }
   });
 }
+
+// Poller de la cola de salientes (avisos L/M/V). Corre en segundo plano; solo
+// entrega cuando hay socket abierto.
+setInterval(() => {
+  procesarColaSalientes().catch((e) => console.error('Error en la cola de salientes:', e?.message ?? e));
+}, INTERVALO_COLA_MS);
 
 iniciar().catch((e) => {
   console.error('Fallo al iniciar el bot:', e);

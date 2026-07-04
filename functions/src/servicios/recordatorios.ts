@@ -35,3 +35,15 @@ export async function contarPendientes(db: Firestore): Promise<number> {
   const q = await db.collection('recordatorios').where('estatus', '==', 'pendiente').count().get();
   return q.data().count;
 }
+
+// Pendientes agrupados por dueño (correo → cuántos), para avisar a cada quien
+// solo de lo suyo por WhatsApp.
+export async function pendientesPorDueno(db: Firestore): Promise<Record<string, number>> {
+  const q = await db.collection('recordatorios').where('estatus', '==', 'pendiente').get();
+  const acc: Record<string, number> = {};
+  for (const d of q.docs) {
+    const correo = d.data().duenoCorreo as string | undefined;
+    if (correo) acc[correo] = (acc[correo] ?? 0) + 1;
+  }
+  return acc;
+}

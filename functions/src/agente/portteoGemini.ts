@@ -49,11 +49,13 @@ function aSchemaGemini(js: Record<string, unknown>): Schema {
   return schema;
 }
 
-const DECLARACIONES: FunctionDeclaration[] = HERRAMIENTAS.map((h) => ({
-  name: h.name,
-  description: h.description ?? '',
-  parameters: aSchemaGemini(h.input_schema as unknown as Record<string, unknown>),
-}));
+function declaracionesDe(tools: typeof HERRAMIENTAS): FunctionDeclaration[] {
+  return tools.map((h) => ({
+    name: h.name,
+    description: h.description ?? '',
+    parameters: aSchemaGemini(h.input_schema as unknown as Record<string, unknown>),
+  }));
+}
 
 export interface RespuestaPortteo {
   texto: string;
@@ -65,8 +67,13 @@ export async function conversarConPortteoGemini(params: {
   contexto: ContextoEjecucion;
   // Mismo formato de historial que el adaptador de Claude (role user/assistant + texto)
   historial: Anthropic.MessageParam[];
+  // Overrides opcionales (ej. para WhatsApp: subconjunto de herramientas y prompt propio)
+  herramientas?: typeof HERRAMIENTAS;
+  sistema?: string;
 }): Promise<RespuestaPortteo> {
   const ai = new GoogleGenAI({ apiKey: params.apiKey });
+  const DECLARACIONES = declaracionesDe(params.herramientas ?? HERRAMIENTAS);
+  const SYSTEM = params.sistema ?? SYSTEM_PROMPT;
 
   const contents: Content[] = params.historial.map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',
@@ -79,7 +86,7 @@ export async function conversarConPortteoGemini(params: {
       model: MODELO,
       contents,
       config: {
-        systemInstruction: SYSTEM_PROMPT,
+        systemInstruction: SYSTEM,
         tools: [{ functionDeclarations: DECLARACIONES }],
       },
     });
