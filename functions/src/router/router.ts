@@ -19,27 +19,35 @@ export function esSaludo(texto: string): boolean {
   return !texto.trim() || RE_SALUDO.test(texto);
 }
 
+// Por WhatsApp Portteo trabaja en modo CONSULTA. Armar y aprobar cotizaciones
+// es en Porttea-Gener (la web), donde se ve el documento en vivo. El menú lo
+// dice honestamente para no prometer lo que este canal aún no hace (Forma 2).
 const MENU_DUENO = [
-  '1. Crear una cotización',
-  '2. Consultar una cotización pasada',
-  '3. Buscar un precio en el histórico',
-  '4. Mis recordatorios',
-  '5. Plantillas de servicios',
+  'Por aquí te ayudo a consultar (para armar y aprobar, entra a Porttea-Gener en la web):',
+  '• Buscar un precio del histórico',
+  '• Consultar una cotización pasada (por folio o cliente)',
+  '• Ver las plantillas de servicios',
+  '• Guardar un recordatorio ("recuérdame cotizar a X")',
+  '',
+  'Escríbeme lo que necesitas 🙂',
 ].join('\n');
 
 const MENU_SECRETARIA = [
-  '1. Armar un borrador de cotización',
-  '2. Consultar una cotización pasada',
-  '3. Buscar un precio en el histórico',
+  'Por aquí te ayudo a consultar (para armar un borrador, entra a Porttea-Gener en la web):',
+  '• Buscar un precio del histórico',
+  '• Consultar una cotización pasada (por folio o cliente)',
+  '• Ver las plantillas de servicios',
+  '',
+  'Escríbeme lo que necesitas 🙂',
 ].join('\n');
 
 export function menuPorRol(rol: Rol, nombre: string): string {
   switch (rol) {
     case 'superAdmin':
     case 'dueno':
-      return `Hola ${nombre} 👋 ¿en qué te puedo ayudar?\n${MENU_DUENO}`;
+      return `Hola ${nombre} 👋\n${MENU_DUENO}`;
     case 'secretaria':
-      return `Hola ${nombre} 👋 ¿en qué te puedo ayudar?\n${MENU_SECRETARIA}`;
+      return `Hola ${nombre} 👋\n${MENU_SECRETARIA}`;
     case 'trabajador':
       return `Hola ${nombre} 👋 Por ahora no tengo opciones para tu rol en este módulo.`;
   }

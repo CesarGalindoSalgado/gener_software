@@ -435,30 +435,38 @@ const SYSTEM_WHATSAPP = [
 
 // Corre a Portteo para un mensaje de WhatsApp, guardando el historial por
 // teléfono para que tenga memoria de la conversación.
+const FALLBACK_WHATSAPP = 'Uy, se me complicó procesar eso 😅. Intenta de nuevo en un momento, por favor.';
+
 async function conversarPortteoWhatsApp(usuario: Usuario, mensaje: MensajeEntrante): Promise<string> {
   const telefono = mensaje.telefono;
-  const historialPrevio = await leerHistorialWA(db, telefono, 12);
-  await guardarMensajeWA(db, telefono, { rol: 'usuario', texto: mensaje.texto });
+  try {
+    const historialPrevio = await leerHistorialWA(db, telefono, 12);
+    await guardarMensajeWA(db, telefono, { rol: 'usuario', texto: mensaje.texto });
 
-  const historial: Anthropic.MessageParam[] = [
-    ...historialPrevio.map((m) => ({
-      role: m.rol === 'usuario' ? ('user' as const) : ('assistant' as const),
-      content: m.texto,
-    })),
-    { role: 'user' as const, content: mensaje.texto },
-  ];
+    const historial: Anthropic.MessageParam[] = [
+      ...historialPrevio.map((m) => ({
+        role: m.rol === 'usuario' ? ('user' as const) : ('assistant' as const),
+        content: m.texto,
+      })),
+      { role: 'user' as const, content: mensaje.texto },
+    ];
 
-  const respuesta = await conversarConPortteoGemini({
-    apiKey: GEMINI_API_KEY.value(),
-    ejecutor: crearEjecutor(db),
-    contexto: { correo: usuario.correo, rol: usuario.rol },
-    historial,
-    herramientas: HERRAMIENTAS.filter((h) => HERRAMIENTAS_WHATSAPP.has(h.name)),
-    sistema: SYSTEM_WHATSAPP,
-  });
+    const respuesta = await conversarConPortteoGemini({
+      apiKey: GEMINI_API_KEY.value(),
+      ejecutor: crearEjecutor(db),
+      contexto: { correo: usuario.correo, rol: usuario.rol },
+      historial,
+      herramientas: HERRAMIENTAS.filter((h) => HERRAMIENTAS_WHATSAPP.has(h.name)),
+      sistema: SYSTEM_WHATSAPP,
+    });
 
-  await guardarMensajeWA(db, telefono, { rol: 'portteo', texto: respuesta.texto });
-  return respuesta.texto;
+    await guardarMensajeWA(db, telefono, { rol: 'portteo', texto: respuesta.texto });
+    return respuesta.texto;
+  } catch (e) {
+    // Si Portteo/Gemini o Firestore fallan, el usuario NO se queda mudo.
+    logger.error('Portteo por WhatsApp falló:', e);
+    return FALLBACK_WHATSAPP;
+  }
 }
 
 export const webhookWhatsapp = onRequest(
@@ -480,11 +488,18 @@ export const webhookWhatsapp = onRequest(
       return;
     }
 
-    const respuesta = await procesarMensaje(
-      { buscarUsuario: buscarUsuarioPorTelefono, conversar: conversarPortteoWhatsApp },
-      mensaje
-    );
-    res.status(200).json(respuesta ?? { ignorado: true });
+    try {
+      const respuesta = await procesarMensaje(
+        { buscarUsuario: buscarUsuarioPorTelefono, conversar: conversarPortteoWhatsApp },
+        mensaje
+      );
+      res.status(200).json(respuesta ?? { ignorado: true });
+    } catch (e) {
+      // Ante cualquier fallo (p. ej. resolver el usuario), no respondemos para no
+      // contestarle a un número que quizá no esté en la lista blanca. Se registra.
+      logger.error('webhookWhatsapp falló:', e);
+      res.status(200).json({ ignorado: true });
+    }
   }
 );
 

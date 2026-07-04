@@ -21,17 +21,18 @@ const mensaje = (telefono: string): MensajeEntrante => ({
 });
 
 describe('router — lista blanca y menú por rol', () => {
-  it('el dueño recibe su menú completo', async () => {
+  it('el dueño recibe su menú (consulta + recordatorio, con salida a la web)', async () => {
     const r = await procesarMensaje(ctx, mensaje('5217771112233'));
     expect(r?.texto).toContain('Gabriel');
-    expect(r?.texto).toContain('Crear una cotización');
-    expect(r?.texto).toContain('recordatorios');
+    expect(r?.texto).toContain('histórico');
+    expect(r?.texto).toContain('recordatorio');
+    expect(r?.texto).toContain('Porttea-Gener');
   });
 
-  it('la secretaria recibe menú sin aprobar ni recordatorios', async () => {
+  it('la secretaria recibe menú de consulta sin recordatorios', async () => {
     const r = await procesarMensaje(ctx, mensaje('5217774445566'));
     expect(r?.texto).toContain('borrador');
-    expect(r?.texto).not.toContain('recordatorios');
+    expect(r?.texto).not.toContain('recordatorio');
   });
 
   it('un número desconocido se ignora (sin respuesta)', async () => {
