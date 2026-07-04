@@ -42,6 +42,7 @@ const MENU_SECRETARIA = [
 ].join('\n');
 
 export function menuPorRol(rol: Rol, nombre: string): string {
+  nombre = (nombre ?? '').trim() || 'que tal'; // por si el usuario no tiene nombre
   switch (rol) {
     case 'superAdmin':
     case 'dueno':

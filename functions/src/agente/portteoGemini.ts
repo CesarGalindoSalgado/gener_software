@@ -118,10 +118,17 @@ export async function conversarConPortteoGemini(params: {
       } catch (e) {
         salida = { error: e instanceof Error ? e.message : 'Error al ejecutar la herramienta' };
       }
+      // Gemini exige que `response` sea un objeto (Struct), no una lista ni un
+      // primitivo. Las herramientas que devuelven arrays (buscarHistorico,
+      // consultarCotizacion, listarPlantillas) se envuelven en { resultado }.
+      const respuesta =
+        salida !== null && typeof salida === 'object' && !Array.isArray(salida)
+          ? (salida as Record<string, unknown>)
+          : { resultado: salida };
       respuestas.push({
         functionResponse: {
           name: llamada.name ?? '',
-          response: salida as Record<string, unknown>,
+          response: respuesta,
         },
       });
     }
