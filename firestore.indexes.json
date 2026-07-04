@@ -5,7 +5,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "estatus", "order": "ASCENDING" },
-        { "fieldPath": "fechaEnvio", "order": "DESCENDING" }
+        { "fieldPath": "fechaEnvio", "order": "ASCENDING" }
       ]
     },
     {
