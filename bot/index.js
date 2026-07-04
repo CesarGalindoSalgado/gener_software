@@ -66,6 +66,16 @@ function telefonoDeJid(jid) {
   return jid.split('@')[0].split(':')[0].replace(/\D/g, '');
 }
 
+// WhatsApp puede identificar al remitente con un LID (@lid), que NO es el
+// teléfono. El número real vive en un JID que termina en @s.whatsapp.net, que
+// Baileys expone en remoteJidAlt/participantAlt cuando el principal es @lid.
+function telefonoReal(m) {
+  const k = m.key ?? {};
+  const candidatos = [k.remoteJid, k.remoteJidAlt, k.participant, k.participantAlt, k.senderPn];
+  const pn = candidatos.find((j) => typeof j === 'string' && j.endsWith('@s.whatsapp.net'));
+  return pn ? telefonoDeJid(pn) : null;
+}
+
 async function enviarAlWebhook(payload) {
   const res = await fetch(WEBHOOK_URL, {
     method: 'POST',
@@ -171,7 +181,8 @@ async function iniciar() {
 
       const texto = textoDeMensaje(m);
       if (!texto) continue;
-      const telefono = telefonoDeJid(jid);
+
+      const telefono = telefonoReal(m) ?? telefonoDeJid(jid);
 
       try {
         await sock.sendPresenceUpdate('composing', jid);
