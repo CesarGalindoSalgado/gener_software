@@ -1,5 +1,7 @@
 import makeWASocket, {
+  Browsers,
   DisconnectReason,
+  fetchLatestBaileysVersion,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
@@ -118,7 +120,17 @@ async function marcarSaliente(id, estatus, motivo) {
 
 async function iniciar() {
   const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth'));
-  const sock = makeWASocket({ auth: state, logger, printQRInTerminal: false });
+  // Fija la version actual de WhatsApp Web: sin esto, una version desfasada
+  // provoca "código 405" en la conexión fresca.
+  const { version } = await fetchLatestBaileysVersion();
+  console.log(`Baileys usando WhatsApp Web v${version.join('.')}`);
+  const sock = makeWASocket({
+    version,
+    auth: state,
+    logger,
+    browser: Browsers.ubuntu('Chrome'),
+    printQRInTerminal: false,
+  });
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -143,8 +155,9 @@ async function iniciar() {
       if (cerroSesion) {
         console.log('Sesión cerrada desde el teléfono. Borra la carpeta bot/auth y vuelve a vincular.');
       } else {
-        console.log('Reconectando…');
-        iniciar();
+        // Backoff para no martillar a WhatsApp (evita el loop rápido de 405).
+        console.log('Reconectando en 3s…');
+        setTimeout(() => iniciar().catch((e) => console.error('Fallo al reconectar:', e?.message ?? e)), 3000);
       }
     }
   });
