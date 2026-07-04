@@ -384,8 +384,22 @@ export const actualizarUsuarioCallable = onCall({ region: REGION }, async (req) 
 
 // ---------- Webhooks del bot (fase 5: creación por WhatsApp) ----------
 
+// México manda el número como 521XXXXXXXXXX (con el "1" tras la lada), pero el
+// dueño puede haberlo guardado como 52XXXXXXXXXX (sin el "1"). Probamos ambas
+// formas para que empate sin importar cómo se dio de alta.
+function variantesTelefono(telefono: string): string[] {
+  const set = new Set([telefono]);
+  if (/^52\d{10}$/.test(telefono)) set.add('521' + telefono.slice(2));
+  if (/^521\d{10}$/.test(telefono)) set.add('52' + telefono.slice(3));
+  return [...set];
+}
+
 async function buscarUsuarioPorTelefono(telefono: string): Promise<Usuario | null> {
-  const q = await db.collection('usuarios').where('telefono', '==', telefono).limit(1).get();
+  const q = await db
+    .collection('usuarios')
+    .where('telefono', 'in', variantesTelefono(telefono))
+    .limit(1)
+    .get();
   return q.empty ? null : (q.docs[0].data() as Usuario);
 }
 
@@ -489,10 +503,14 @@ export const webhookWhatsapp = onRequest(
     }
 
     try {
+      logger.info(`WhatsApp entra de ${mensaje.telefono}: "${mensaje.texto.slice(0, 60)}"`);
       const respuesta = await procesarMensaje(
         { buscarUsuario: buscarUsuarioPorTelefono, conversar: conversarPortteoWhatsApp },
         mensaje
       );
+      if (!respuesta) {
+        logger.info(`Número ${mensaje.telefono} ignorado (no está en la lista blanca o inactivo).`);
+      }
       res.status(200).json(respuesta ?? { ignorado: true });
     } catch (e) {
       // Ante cualquier fallo (p. ej. resolver el usuario), no respondemos para no
