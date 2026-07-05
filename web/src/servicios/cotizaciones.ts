@@ -54,6 +54,7 @@ const callablePortteo = httpsCallable<{ cotizacionId: string; mensaje: string },
 const callableAprobar = httpsCallable<{ cotizacionId: string }, { folio: string }>(functions, 'aprobar');
 const callableCambiarEstatus = httpsCallable<{ cotizacionId: string; estatus: EstatusCotizacion }, { ok: boolean; estatus: string }>(functions, 'cambiarEstatus');
 const callableCrearRevision = httpsCallable<{ cotizacionId: string }, { versionId: string; rev: string }>(functions, 'crearRevisionCallable');
+const callableEnviarCliente = httpsCallable<{ cotizacionId: string; telefono?: string }, { ok: boolean; telefono: string }>(functions, 'enviarCotizacionCliente');
 
 export async function crearCotizacion(clienteNombre: string, titulo: string) {
   const res = await callableCrear({ clienteNombre, titulo });
@@ -76,6 +77,10 @@ export async function cambiarEstatus(cotizacionId: string, estatus: EstatusCotiz
 
 export async function crearRevision(cotizacionId: string) {
   return (await callableCrearRevision({ cotizacionId })).data;
+}
+
+export async function enviarCotizacionCliente(cotizacionId: string, telefono?: string) {
+  return (await callableEnviarCliente({ cotizacionId, telefono })).data;
 }
 
 // Cotizaciones enviadas sin cerrar (para seguimiento), más antiguas primero.

@@ -74,6 +74,22 @@ export async function encolarSalienteUnico(
   }
 }
 
+// Encola un mensaje con id automático (cada llamada = un envío). Para avisos
+// que sí deben ser únicos por día, usar encolarSalienteUnico.
+export async function encolarSaliente(
+  db: Firestore,
+  params: { telefono: string; texto: string; motivo?: string }
+): Promise<void> {
+  await db.collection('mensajes_salientes').add({
+    telefono: params.telefono,
+    texto: params.texto,
+    motivo: params.motivo ?? null,
+    estatus: 'pendiente',
+    creadoEn: FieldValue.serverTimestamp(),
+    enviadoEn: null,
+  });
+}
+
 export async function salientesPendientes(
   db: Firestore,
   limite = 20

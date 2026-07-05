@@ -25,12 +25,15 @@ import { actualizarUsuario, crearUsuario } from './servicios/usuarios';
 import { actualizarPlantilla, crearPlantilla } from './servicios/plantillas';
 import { crearRecordatorioPortal, marcarRecordatorio, pendientesPorDueno } from './servicios/recordatorios';
 import {
+  encolarSaliente,
   encolarSalienteUnico,
   guardarMensajeWA,
   leerHistorialWA,
   marcarSaliente,
   salientesPendientes,
 } from './servicios/whatsapp';
+import { firmarEnlace, verificarEnlace } from './servicios/enlaces';
+import { paginaCotizacionHtml, paginaError } from './servicios/documentoHtml';
 import { MensajeEntrante } from './canal/tipos';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
@@ -41,6 +44,8 @@ const db = getFirestore();
 // Claude (agente/portteo.ts) queda disponible por si se cambia de proveedor.
 const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
 const REGION = 'us-central1';
+// Base pública de las funciones HTTP (para armar el enlace que ve el cliente).
+const BASE_FUNCIONES = 'https://us-central1-gener-3ecc1.cloudfunctions.net';
 
 // ---------- Autenticación de callables (identidad web = correo) ----------
 
@@ -557,6 +562,92 @@ export const colaSalientes = onRequest(
       return;
     }
     res.status(405).send('Método no permitido');
+  }
+);
+
+// Página pública que ve el CLIENTE con su cotización (enlace firmado). No pide
+// cuenta: la autorización es el token (firmado + con expiración).
+export const verCotizacion = onRequest(
+  { region: REGION, secrets: ['WHATSAPP_WEBHOOK_SECRET'] },
+  async (req, res) => {
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    const secreto = process.env.WHATSAPP_WEBHOOK_SECRET ?? '';
+    const val = verificarEnlace(secreto, String(req.query.token ?? ''));
+    if (!val) {
+      res.status(403).send(paginaError('Este enlace no es válido o ya venció. Pídele a G-ener uno nuevo.'));
+      return;
+    }
+    const cotSnap = await db.doc(`cotizaciones/${val.cotizacionId}`).get();
+    if (!cotSnap.exists) {
+      res.status(404).send(paginaError('No encontramos esta cotización.'));
+      return;
+    }
+    const cot = cotSnap.data()!;
+    const verSnap = await db.doc(`cotizaciones/${val.cotizacionId}/versiones/${cot.versionActualId}`).get();
+    if (!verSnap.exists) {
+      res.status(404).send(paginaError('No encontramos el contenido de esta cotización.'));
+      return;
+    }
+    const ver = verSnap.data()!;
+    res.status(200).send(
+      paginaCotizacionHtml({
+        folio: cot.folio ?? null,
+        rev: ver.rev ?? 'A',
+        fecha: ver.fecha?.toDate?.() ?? new Date(),
+        cliente: cot.cliente ?? {},
+        asunto: cot.titulo ?? '',
+        partidas: ver.partidas ?? [],
+        formaPago: ver.formaPago,
+        tiempoEntrega: ver.tiempoEntrega,
+      })
+    );
+  }
+);
+
+// México: normaliza a 521XXXXXXXXXX (con lada y el "1" de móvil) para WhatsApp.
+function normalizarTelefonoMx(crudo: string): string {
+  const d = crudo.replace(/\D/g, '');
+  if (d.length === 10) return '521' + d;
+  if (/^52\d{10}$/.test(d)) return '521' + d.slice(2);
+  return d;
+}
+
+// Manda al CLIENTE (por WhatsApp) el enlace a su cotización. Encola el mensaje;
+// el bot lo entrega. El número del cliente puede venir en la cotización o darse.
+export const enviarCotizacionCliente = onCall(
+  { region: REGION, secrets: ['WHATSAPP_WEBHOOK_SECRET'] },
+  async (req) => {
+    const usuario = await usuarioDesdeAuth(req);
+    exigirRol(usuario, ROLES_OPERADOR);
+
+    const cotizacionId = String(req.data?.cotizacionId ?? '');
+    if (!cotizacionId) throw new HttpsError('invalid-argument', 'Falta cotizacionId.');
+
+    const cotSnap = await db.doc(`cotizaciones/${cotizacionId}`).get();
+    if (!cotSnap.exists) throw new HttpsError('not-found', 'No existe la cotización.');
+    const cot = cotSnap.data()!;
+    if (!cot.folio) {
+      throw new HttpsError('failed-precondition', 'Aprueba la cotización antes de enviarla al cliente.');
+    }
+
+    const crudo = String(req.data?.telefono ?? cot.cliente?.telefono ?? '').trim();
+    if (!crudo) throw new HttpsError('invalid-argument', 'No hay teléfono del cliente. Escríbelo para enviar.');
+    const telefono = normalizarTelefonoMx(crudo);
+
+    const secreto = process.env.WHATSAPP_WEBHOOK_SECRET ?? '';
+    const enlace = `${BASE_FUNCIONES}/verCotizacion?token=${firmarEnlace(secreto, cotizacionId)}`;
+    const saludo = cot.cliente?.atencion ? `Hola ${cot.cliente.atencion}` : 'Hola';
+    const texto =
+      `${saludo}, le compartimos su cotización *${cot.folio}* de Gener Power & Control:\n${enlace}\n\n` +
+      `El enlace muestra el documento completo. Quedamos atentos.`;
+
+    await encolarSaliente(db, { telefono, texto, motivo: 'cotizacion_cliente' });
+
+    // Guarda el teléfono en el cliente para la próxima vez.
+    if (cot.clienteId && !cot.cliente?.telefono) {
+      await db.doc(`clientes/${cot.clienteId}`).set({ telefono }, { merge: true });
+    }
+    return { ok: true, telefono };
   }
 );
 

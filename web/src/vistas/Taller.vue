@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref, watch, nextTick } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { ArrowLeft, Plus, Trash2, MessageSquare, Send, LoaderCircle, FileDown, GitBranch } from 'lucide-vue-next';
+import { ArrowLeft, Plus, Trash2, MessageSquare, Send, LoaderCircle, FileDown, GitBranch, MessageCircle } from 'lucide-vue-next';
 import html2pdf from 'html2pdf.js';
 import DocumentoCotizacion from '../components/DocumentoCotizacion.vue';
 import type { BorradorCotizacion } from '../dominio/tipos';
@@ -10,6 +10,7 @@ import { sesion } from '../sesion';
 import {
   aprobarCotizacion,
   crearRevision,
+  enviarCotizacionCliente,
   enviarMensajePortteo,
   suscribirChat,
   suscribirCotizacion,
@@ -149,18 +150,53 @@ async function nuevaRevision() {
   }
 }
 
+// Diálogo post-aprobación: ¿enviar al cliente por WhatsApp o solo descargar?
+const mostrarEnvio = ref(false);
+const folioAprobado = ref('');
+const telefonoCliente = ref('');
+const enviandoCliente = ref(false);
+const envioOk = ref(false);
+
 async function aprobar() {
   if (!cotizacionId.value || aprobando.value) return;
   if (!confirm('¿Aprobar esta cotización? Se asignará el folio definitivo.')) return;
   error.value = '';
   aprobando.value = true;
   try {
-    await aprobarCotizacion(cotizacionId.value);
+    const res = await aprobarCotizacion(cotizacionId.value);
+    // Aprobada: ofrecer enviar al cliente o descargar.
+    folioAprobado.value = res.folio;
+    telefonoCliente.value = cot.value?.cliente?.telefono ?? '';
+    envioOk.value = false;
+    mostrarEnvio.value = true;
   } catch (e: unknown) {
     error.value = (e as { message?: string })?.message ?? 'No se pudo aprobar.';
   } finally {
     aprobando.value = false;
   }
+}
+
+async function enviarAlCliente() {
+  if (!cotizacionId.value || enviandoCliente.value) return;
+  if (!telefonoCliente.value.trim()) {
+    error.value = 'Escribe el número de WhatsApp del cliente.';
+    return;
+  }
+  enviandoCliente.value = true;
+  error.value = '';
+  try {
+    await enviarCotizacionCliente(cotizacionId.value, telefonoCliente.value.trim());
+    envioOk.value = true;
+  } catch (e: unknown) {
+    error.value = (e as { message?: string })?.message ?? 'No se pudo enviar al cliente.';
+  } finally {
+    enviandoCliente.value = false;
+  }
+}
+
+async function descargarYCerrar() {
+  await descargarPdf();
+  mostrarEnvio.value = false;
 }
 
 // ================= MODO LOCAL (sin :id — playground de prueba) =================
@@ -342,6 +378,56 @@ function editarLineas(i: number, texto: string) {
             Cargando cotización…
           </div>
           <DocumentoCotizacion v-else :borrador="borradorLocal" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Diálogo post-aprobación: enviar al cliente o descargar ===== -->
+    <div v-if="mostrarEnvio" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div class="bg-card rounded-xl shadow-xl w-full max-w-md p-6">
+        <p class="eyebrow eyebrow--marca">Cotización aprobada</p>
+        <h2 class="text-2xl mb-1">Folio <span class="font-mono text-brand-text">{{ folioAprobado }}</span></h2>
+        <p class="text-sm text-muted-ink mb-4">¿Se la mandas al cliente por WhatsApp o solo la descargas?</p>
+
+        <div v-if="envioOk" class="bg-success/10 border border-success/30 rounded-lg p-4 text-center">
+          <p class="text-success font-medium">✅ Enviada al cliente</p>
+          <p class="text-xs text-muted-ink mt-1">El bot la entregará al <span class="font-mono">{{ telefonoCliente }}</span> en unos segundos.</p>
+        </div>
+
+        <template v-else>
+          <label class="eyebrow block mb-1">WhatsApp del cliente</label>
+          <input
+            v-model="telefonoCliente"
+            placeholder="Ej. 777 123 4567"
+            class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm mb-1"
+          />
+          <p class="text-xs text-muted-ink mb-4">Con lada. Si es de México, le agregamos el 52 automáticamente.</p>
+
+          <button
+            @click="enviarAlCliente"
+            :disabled="enviandoCliente"
+            class="w-full h-10 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent-bright disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <LoaderCircle v-if="enviandoCliente" :size="16" class="animate-spin" />
+            <MessageCircle v-else :size="16" />
+            {{ enviandoCliente ? 'Enviando…' : 'Enviar por WhatsApp' }}
+          </button>
+        </template>
+
+        <div class="flex gap-2 mt-3">
+          <button
+            @click="descargarYCerrar"
+            :disabled="generandoPdf"
+            class="flex-1 h-10 rounded-md border border-line-strong text-sm font-medium text-ink-2 hover:border-accent hover:text-accent disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <FileDown :size="15" /> {{ generandoPdf ? 'Generando…' : 'Descargar PDF' }}
+          </button>
+          <button
+            @click="mostrarEnvio = false"
+            class="flex-1 h-10 rounded-md text-sm font-medium text-muted-ink hover:text-ink"
+          >
+            {{ envioOk ? 'Listo' : 'Cerrar' }}
+          </button>
         </div>
       </div>
     </div>
