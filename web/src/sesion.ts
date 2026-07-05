@@ -1,4 +1,4 @@
-import { reactive, readonly } from 'vue';
+import { reactive, readonly, watch } from 'vue';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -49,13 +49,23 @@ export async function cerrarSesion(): Promise<void> {
   await signOut(auth);
 }
 
-// Espera a que termine la carga inicial de auth (útil en el guard del router).
+// Espera a que termine la carga inicial de sesión (útil en el guard del router).
+// OJO: hay que esperar a que `cargando` sea false, es decir a que se haya
+// RESUELTO el doc de la lista blanca (usuarios/{correo}), no solo al primer
+// evento de auth. Si no, en una pestaña nueva (p. ej. la vista de impresión que
+// abre el botón de PDF) el guard corre antes de resolver el usuario y redirige
+// al login por error.
 export function esperarCarga(): Promise<void> {
   if (!estado.cargando) return Promise.resolve();
   return new Promise((resolve) => {
-    const stop = onAuthStateChanged(auth, () => {
-      stop();
-      resolve();
-    });
+    const stop = watch(
+      () => estado.cargando,
+      (cargando) => {
+        if (!cargando) {
+          stop();
+          resolve();
+        }
+      }
+    );
   });
 }
