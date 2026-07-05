@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { ArrowLeft, Printer } from 'lucide-vue-next';
 import DocumentoCotizacion from '../components/DocumentoCotizacion.vue';
 import type { BorradorCotizacion } from '../dominio/tipos';
 import {
@@ -14,6 +15,7 @@ import {
 // "Guardar como PDF". Se abre en pestaña nueva desde el taller y lanza el
 // diálogo de impresión en cuanto la cotización cargó.
 const route = useRoute();
+const router = useRouter();
 const id = route.params.id as string;
 
 const cot = ref<CotizacionDoc | null>(null);
@@ -64,12 +66,27 @@ watch(borrador, (b) => {
 function imprimir() {
   window.print();
 }
+
+function volver() {
+  // Si esta pestaña la abrió el botón de PDF (window.open marca window.opener),
+  // ciérrala para volver al taller original. Si se cargó directo, navega al taller.
+  if (window.opener) {
+    window.close();
+    return;
+  }
+  router.push({ name: 'taller', params: { id } });
+}
 </script>
 
 <template>
   <div class="pantalla">
     <div class="barra no-print">
-      <button @click="imprimir" class="btn">Imprimir / Guardar como PDF</button>
+      <button @click="volver" class="btn btn--sec" title="Volver al taller">
+        <ArrowLeft :size="16" /> Volver
+      </button>
+      <button @click="imprimir" class="btn">
+        <Printer :size="16" /> Imprimir / Guardar como PDF
+      </button>
       <span class="ayuda">En el diálogo, elige “Guardar como PDF” como destino.</span>
     </div>
     <div class="hoja">
@@ -101,9 +118,20 @@ function imprimir() {
   border: none;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .btn:hover {
   background: #1d5f9a;
+}
+.btn--sec {
+  background: #fff;
+  color: #143d6b;
+  border: 1px solid #c3ccd8;
+}
+.btn--sec:hover {
+  background: #f1f4f8;
 }
 .ayuda {
   font-size: 12px;
