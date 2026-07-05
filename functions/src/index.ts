@@ -115,12 +115,22 @@ export const portteo = onCall(
       { role: 'user' as const, content: mensaje },
     ];
 
-    const respuesta = await conversarConPortteoGemini({
-      apiKey: GEMINI_API_KEY.value(),
-      ejecutor: crearEjecutor(db),
-      contexto: { correo: usuario.correo, rol: usuario.rol, cotizacionId, versionId },
-      historial,
-    });
+    let respuesta: { texto: string };
+    try {
+      respuesta = await conversarConPortteoGemini({
+        apiKey: GEMINI_API_KEY.value(),
+        ejecutor: crearEjecutor(db),
+        contexto: { correo: usuario.correo, rol: usuario.rol, cotizacionId, versionId },
+        historial,
+      });
+    } catch (e) {
+      // No dejamos que un error del LLM (p. ej. 503 de Gemini) llegue como
+      // "internal" al usuario: Portteo responde con un aviso amable en el chat.
+      logger.error('portteo (taller) falló:', e);
+      respuesta = {
+        texto: 'Ando saturado en este momento (mucha demanda). Dame unos segundos y vuelve a intentar, por favor. 🙏',
+      };
+    }
 
     await guardarMensajeChat(db, cotizacionId, { rol: 'portteo', texto: respuesta.texto });
     return { texto: respuesta.texto };

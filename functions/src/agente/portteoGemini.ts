@@ -61,6 +61,30 @@ export interface RespuestaPortteo {
   texto: string;
 }
 
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Gemini (capa gratuita) devuelve 503/429 por picos de demanda. Reintenta con
+// backoff corto en errores transitorios antes de rendirse.
+async function generarConReintento(
+  ai: GoogleGenAI,
+  req: Parameters<GoogleGenAI['models']['generateContent']>[0],
+  intentos = 3
+) {
+  let ultimo: unknown;
+  for (let i = 0; i < intentos; i++) {
+    try {
+      return await ai.models.generateContent(req);
+    } catch (e) {
+      ultimo = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      const transitorio = /\b(503|429|500)\b|UNAVAILABLE|high demand|overloaded|RESOURCE_EXHAUSTED/i.test(msg);
+      if (!transitorio || i === intentos - 1) throw e;
+      await esperar(700 * (i + 1)); // 700ms, 1400ms
+    }
+  }
+  throw ultimo;
+}
+
 export async function conversarConPortteoGemini(params: {
   apiKey: string;
   ejecutor: EjecutorHerramientas;
@@ -82,7 +106,7 @@ export async function conversarConPortteoGemini(params: {
 
   // Loop agéntico: se repite mientras el modelo pida herramientas.
   for (let vuelta = 0; vuelta < 12; vuelta++) {
-    const res = await ai.models.generateContent({
+    const res = await generarConReintento(ai, {
       model: MODELO,
       contents,
       config: {
