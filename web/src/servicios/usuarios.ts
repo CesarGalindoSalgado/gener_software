@@ -1,4 +1,4 @@
-import { collection, onSnapshot, orderBy, query, type Timestamp, type Unsubscribe } from 'firebase/firestore';
+import { collection, onSnapshot, type Timestamp, type Unsubscribe } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../firebase';
 import type { Rol } from '../dominio/tipos';
@@ -43,8 +43,12 @@ export async function actualizarUsuario(datos: {
 }
 
 export function suscribirUsuarios(cb: (items: UsuarioDoc[]) => void): Unsubscribe {
-  const q = query(collection(db, 'usuarios'), orderBy('nombre', 'asc'));
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => ({ correo: d.id, ...(d.data() as Omit<UsuarioDoc, 'correo'>) })));
+  // OJO: NO usar orderBy('nombre') en la query — Firestore omite los documentos
+  // que no tienen ese campo, así que un usuario sin "nombre" desaparecería de la
+  // lista. Traemos todos y ordenamos en el cliente.
+  return onSnapshot(collection(db, 'usuarios'), (snap) => {
+    const items = snap.docs.map((d) => ({ correo: d.id, ...(d.data() as Omit<UsuarioDoc, 'correo'>) }));
+    items.sort((a, b) => (a.nombre ?? '').localeCompare(b.nombre ?? ''));
+    cb(items);
   });
 }
