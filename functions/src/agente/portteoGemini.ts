@@ -6,10 +6,7 @@ import { ContextoEjecucion, EjecutorHerramientas, HERRAMIENTAS } from './herrami
 // (portteo.ts): recibe historial + ejecutor y regresa el texto de respuesta.
 // Las herramientas y servicios de dominio son idénticos para ambos proveedores.
 
-// flash-lite tiene bastante más cuota en la capa gratuita que flash; suficiente
-// para desarrollo/pruebas. Para producción conviene activar facturación y, si se
-// quiere, volver a 'gemini-2.5-flash' por un poco más de calidad.
-const MODELO = 'gemini-2.5-flash-lite';
+const MODELO = 'gemini-2.5-flash';
 
 const SYSTEM_PROMPT = `Eres Portteo, el asistente virtual de G-ener (Gener Power & Control), empresa de mantenimiento eléctrico e industrial en Jiutepec, Morelos. Ayudas al dueño y a la secretaria a armar, consultar y dar seguimiento a cotizaciones.
 
