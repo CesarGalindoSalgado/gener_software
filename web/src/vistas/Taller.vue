@@ -2,6 +2,7 @@
 import { computed, onUnmounted, reactive, ref, watch, nextTick } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { ArrowLeft, Plus, Trash2, MessageSquare, Send, LoaderCircle, FileDown, GitBranch } from 'lucide-vue-next';
+import html2pdf from 'html2pdf.js';
 import DocumentoCotizacion from '../components/DocumentoCotizacion.vue';
 import type { BorradorCotizacion } from '../dominio/tipos';
 import { ROLES_ADMIN } from '../dominio/tipos';
@@ -100,10 +101,33 @@ async function enviar() {
   }
 }
 
-function descargarPdf() {
-  if (!cotizacionId.value) return;
-  // Abre la vista de impresión limpia en pestaña nueva (auto-lanza el diálogo).
-  window.open(`/imprimir/${cotizacionId.value}`, '_blank');
+const docRef = ref<HTMLElement | null>(null);
+const generandoPdf = ref(false);
+
+async function descargarPdf() {
+  const el = docRef.value;
+  if (!el || generandoPdf.value) return;
+  generandoPdf.value = true;
+  error.value = '';
+  try {
+    const folio = cot.value?.folio || borradorVivo.value?.cliente?.nombre || 'cotizacion';
+    const nombre = `Cotizacion ${folio}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
+    // Genera el PDF directo en el navegador y lo descarga (sin pestaña ni diálogo).
+    await html2pdf()
+      .set({
+        margin: 8,
+        filename: nombre,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+      })
+      .from(el)
+      .save();
+  } catch (e: unknown) {
+    error.value = (e as { message?: string })?.message ?? 'No se pudo generar el PDF.';
+  } finally {
+    generandoPdf.value = false;
+  }
 }
 
 const puedeRevisar = computed(
@@ -201,10 +225,13 @@ function editarLineas(i: number, texto: string) {
         <button
           v-if="cotizacionId && cot"
           @click="descargarPdf"
-          class="h-9 px-3 rounded-md border border-line-strong text-sm font-medium text-ink-2 hover:border-accent hover:text-accent flex items-center gap-1.5"
-          title="Abrir la vista de impresión para guardar como PDF"
+          :disabled="generandoPdf"
+          class="h-9 px-3 rounded-md border border-line-strong text-sm font-medium text-ink-2 hover:border-accent hover:text-accent flex items-center gap-1.5 disabled:opacity-50"
+          title="Descargar la cotización en PDF"
         >
-          <FileDown :size="15" /> PDF
+          <LoaderCircle v-if="generandoPdf" :size="15" class="animate-spin" />
+          <FileDown v-else :size="15" />
+          {{ generandoPdf ? 'Generando…' : 'PDF' }}
         </button>
         <button
           v-if="cotizacionId && esAdmin"
@@ -308,12 +335,14 @@ function editarLineas(i: number, texto: string) {
 
       <!-- ===== Panel derecho: documento en vivo ===== -->
       <div class="flex-1 overflow-auto bg-paper p-8">
-        <DocumentoCotizacion v-if="cotizacionId && borradorVivo" :borrador="borradorVivo" />
-        <div v-else-if="cotizacionId" class="text-center text-muted-ink mt-20">
-          <LoaderCircle :size="22" class="animate-spin mx-auto mb-3" />
-          Cargando cotización…
+        <div ref="docRef">
+          <DocumentoCotizacion v-if="cotizacionId && borradorVivo" :borrador="borradorVivo" />
+          <div v-else-if="cotizacionId" class="text-center text-muted-ink mt-20">
+            <LoaderCircle :size="22" class="animate-spin mx-auto mb-3" />
+            Cargando cotización…
+          </div>
+          <DocumentoCotizacion v-else :borrador="borradorLocal" />
         </div>
-        <DocumentoCotizacion v-else :borrador="borradorLocal" />
       </div>
     </div>
   </div>
