@@ -65,6 +65,50 @@ async function alternarActivo(u: UsuarioDoc) {
   }
 }
 
+// --- Editar ---
+const editando = ref<UsuarioDoc | null>(null);
+const guardandoEdit = ref(false);
+const errorEdit = ref('');
+const edit = reactive({ nombre: '', rol: 'secretaria' as Rol, telefono: '', password: '' });
+
+function abrirEditar(u: UsuarioDoc) {
+  editando.value = u;
+  errorEdit.value = '';
+  edit.nombre = u.nombre ?? '';
+  edit.rol = u.rol;
+  edit.telefono = u.telefono ?? '';
+  edit.password = '';
+}
+
+async function guardarEdicion() {
+  if (!editando.value || guardandoEdit.value) return;
+  if (!edit.nombre.trim()) {
+    errorEdit.value = 'El nombre no puede ir vacío.';
+    return;
+  }
+  if (edit.password && edit.password.length < 6) {
+    errorEdit.value = 'La nueva contraseña debe tener al menos 6 caracteres (o déjala vacía).';
+    return;
+  }
+  guardandoEdit.value = true;
+  errorEdit.value = '';
+  try {
+    await actualizarUsuario({
+      correo: editando.value.correo,
+      nombre: edit.nombre.trim(),
+      rol: edit.rol,
+      telefono: edit.telefono,
+      password: edit.password || undefined,
+    });
+    ok.value = `Usuario ${editando.value.correo} actualizado.`;
+    editando.value = null;
+  } catch (e: unknown) {
+    errorEdit.value = (e as { message?: string })?.message ?? 'No se pudo actualizar.';
+  } finally {
+    guardandoEdit.value = false;
+  }
+}
+
 const total = computed(() => usuarios.value.length);
 </script>
 
@@ -169,17 +213,70 @@ const total = computed(() => usuarios.value.length);
               </span>
             </td>
             <td class="px-5 py-3 text-right">
-              <button
-                @click="alternarActivo(u)"
-                :disabled="cambiando === u.correo"
-                class="text-xs text-accent hover:text-accent-bright disabled:opacity-50"
-              >
-                {{ cambiando === u.correo ? '…' : u.activo ? 'Desactivar' : 'Activar' }}
-              </button>
+              <div class="flex items-center justify-end gap-3">
+                <button @click="abrirEditar(u)" class="text-xs text-accent hover:text-accent-bright">
+                  Editar
+                </button>
+                <button
+                  @click="alternarActivo(u)"
+                  :disabled="cambiando === u.correo"
+                  class="text-xs text-muted-ink hover:text-ink disabled:opacity-50"
+                >
+                  {{ cambiando === u.correo ? '…' : u.activo ? 'Desactivar' : 'Activar' }}
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- ===== Modal editar usuario ===== -->
+    <div v-if="editando" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div class="bg-card rounded-xl shadow-xl w-full max-w-md p-6">
+        <p class="eyebrow eyebrow--marca">Editar usuario</p>
+        <h2 class="text-xl mb-1">{{ editando.correo }}</h2>
+        <p class="text-xs text-muted-ink mb-4">El correo no se puede cambiar (es su identidad de acceso).</p>
+
+        <div class="space-y-3">
+          <div>
+            <label class="eyebrow block mb-1">Nombre</label>
+            <input v-model="edit.nombre" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="eyebrow block mb-1">Rol</label>
+              <select v-model="edit.rol" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm">
+                <option v-for="r in ROLES" :key="r.valor" :value="r.valor">{{ r.etiqueta }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="eyebrow block mb-1">Teléfono (bot)</label>
+              <input v-model="edit.telefono" placeholder="5217771234567" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
+            </div>
+          </div>
+          <div>
+            <label class="eyebrow block mb-1">Nueva contraseña (vacío = no cambiar)</label>
+            <input v-model="edit.password" type="text" placeholder="mín. 6 caracteres" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
+          </div>
+        </div>
+
+        <p v-if="errorEdit" class="text-sm text-danger mt-3">{{ errorEdit }}</p>
+
+        <div class="flex gap-2 mt-5">
+          <button
+            @click="guardarEdicion"
+            :disabled="guardandoEdit"
+            class="flex-1 h-10 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent-bright disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <LoaderCircle v-if="guardandoEdit" :size="15" class="animate-spin" />
+            {{ guardandoEdit ? 'Guardando…' : 'Guardar cambios' }}
+          </button>
+          <button @click="editando = null" class="flex-1 h-10 rounded-md text-sm font-medium text-muted-ink hover:text-ink">
+            Cancelar
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

@@ -386,6 +386,7 @@ export const actualizarUsuarioCallable = onCall({ region: REGION }, async (req) 
       rol: req.data?.rol as Rol | undefined,
       activo: req.data?.activo,
       telefono: req.data?.telefono,
+      password: req.data?.password,
     });
     return { ok: true };
   } catch (e) {

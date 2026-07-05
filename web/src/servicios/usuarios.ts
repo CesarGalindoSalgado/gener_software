@@ -18,7 +18,7 @@ const callableCrear = httpsCallable<
 >(functions, 'crearUsuarioCallable');
 
 const callableActualizar = httpsCallable<
-  { correo: string; nombre?: string; rol?: Rol; activo?: boolean; telefono?: string },
+  { correo: string; nombre?: string; rol?: Rol; activo?: boolean; telefono?: string; password?: string },
   { ok: boolean }
 >(functions, 'actualizarUsuarioCallable');
 
@@ -38,6 +38,7 @@ export async function actualizarUsuario(datos: {
   rol?: Rol;
   activo?: boolean;
   telefono?: string;
+  password?: string;
 }) {
   return (await callableActualizar(datos)).data;
 }

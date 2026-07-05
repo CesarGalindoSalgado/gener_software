@@ -69,7 +69,7 @@ export async function crearUsuario(db: Firestore, datos: DatosNuevoUsuario): Pro
 export async function actualizarUsuario(
   db: Firestore,
   correo: string,
-  cambios: { nombre?: string; rol?: Rol; activo?: boolean; telefono?: string }
+  cambios: { nombre?: string; rol?: Rol; activo?: boolean; telefono?: string; password?: string }
 ): Promise<void> {
   const id = normalizarCorreo(correo);
   const upd: Record<string, unknown> = {};
@@ -80,14 +80,25 @@ export async function actualizarUsuario(
   }
   if (cambios.activo !== undefined) upd.activo = cambios.activo;
   if (cambios.telefono !== undefined) upd.telefono = cambios.telefono.replace(/\D/g, '') || null;
-  if (Object.keys(upd).length === 0) return;
 
-  await db.doc(`usuarios/${id}`).set(upd, { merge: true });
+  const cambiaPassword = cambios.password !== undefined && cambios.password !== '';
+  if (cambiaPassword && cambios.password!.length < 6) {
+    throw new Error('La contraseña debe tener al menos 6 caracteres.');
+  }
 
-  // Desactivar también deshabilita la cuenta de Auth (no puede iniciar sesión).
-  if (cambios.activo !== undefined) {
+  if (Object.keys(upd).length) {
+    await db.doc(`usuarios/${id}`).set(upd, { merge: true });
+  }
+
+  // Efectos en la cuenta de Auth (desactivar y/o cambiar contraseña) requieren el uid.
+  if (cambios.activo !== undefined || cambiaPassword) {
     const snap = await db.doc(`usuarios/${id}`).get();
     const uid = snap.data()?.uid as string | undefined;
-    if (uid) await getAuth().updateUser(uid, { disabled: !cambios.activo });
+    if (uid) {
+      const authUpd: Record<string, unknown> = {};
+      if (cambios.activo !== undefined) authUpd.disabled = !cambios.activo; // deshabilita el login
+      if (cambiaPassword) authUpd.password = cambios.password;
+      await getAuth().updateUser(uid, authUpd);
+    }
   }
 }
