@@ -79,8 +79,8 @@ async function convertir(r: RecordatorioDoc) {
     <div class="h-0.5 w-[90px] bg-brand"></div>
 
     <p class="text-sm text-muted-ink mt-3">
-      Anota las cotizaciones que tienes que armar. Los lunes, miércoles y viernes recibirás un
-      recordatorio (por WhatsApp, próximamente) si hay pendientes.
+      Anota las cotizaciones que tienes que armar. Los lunes, miércoles y viernes, si hay
+      pendientes, recibes un aviso por WhatsApp (a los dueños con teléfono registrado).
     </p>
 
     <!-- Alta -->
