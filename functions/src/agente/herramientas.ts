@@ -41,11 +41,15 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
         titulo: { type: 'string' },
         descripcion: { type: 'string' },
         lineas: { type: 'array', items: { type: 'string' } },
-        cantidad: { type: 'number', description: 'Default 1' },
+        cantidad: {
+          type: 'number',
+          description:
+            'Número de unidades de la partida (ej. "3 metros de cable" → 3, "2 piezas" → 2). Default 1. El total de la partida es importe × cantidad.',
+        },
         importe: {
           type: 'number',
           description:
-            'Precio del bloque. Debe venir del histórico o dictado por el usuario — nunca inventado.',
+            'PRECIO UNITARIO (por una sola unidad), no el total. El total del renglón se calcula como importe × cantidad. Debe venir del histórico o dictado por el usuario — nunca inventado. Si el usuario da un precio TOTAL por varias unidades, pon cantidad 1 con ese total, o divídelo entre la cantidad; ante la duda, pregúntale.',
         },
       },
       required: ['titulo', 'importe'],
