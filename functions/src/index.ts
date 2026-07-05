@@ -23,7 +23,13 @@ import {
 } from './servicios/cotizaciones';
 import { actualizarUsuario, crearUsuario } from './servicios/usuarios';
 import { actualizarPlantilla, crearPlantilla } from './servicios/plantillas';
-import { crearRecordatorioPortal, marcarRecordatorio, pendientesPorDueno } from './servicios/recordatorios';
+import {
+  crearRecordatorioPortal,
+  editarRecordatorio,
+  eliminarRecordatorio,
+  marcarRecordatorio,
+  pendientesPorDueno,
+} from './servicios/recordatorios';
 import {
   encolarSaliente,
   encolarSalienteUnico,
@@ -306,6 +312,31 @@ export const marcarRecordatorioCallable = onCall({ region: REGION }, async (req)
     throw new HttpsError('invalid-argument', 'Faltan recordatorioId o estatus válido.');
   }
   await marcarRecordatorio(db, recordatorioId, estatus);
+  return { ok: true };
+});
+
+export const editarRecordatorioCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_ADMIN);
+  const recordatorioId = String(req.data?.recordatorioId ?? '');
+  if (!recordatorioId) throw new HttpsError('invalid-argument', 'Falta recordatorioId.');
+  try {
+    await editarRecordatorio(db, recordatorioId, {
+      descripcion: req.data?.descripcion !== undefined ? String(req.data.descripcion) : undefined,
+      clienteTexto: req.data?.clienteTexto !== undefined ? String(req.data.clienteTexto) : undefined,
+    });
+    return { ok: true };
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo editar.');
+  }
+});
+
+export const eliminarRecordatorioCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_ADMIN);
+  const recordatorioId = String(req.data?.recordatorioId ?? '');
+  if (!recordatorioId) throw new HttpsError('invalid-argument', 'Falta recordatorioId.');
+  await eliminarRecordatorio(db, recordatorioId);
   return { ok: true };
 });
 

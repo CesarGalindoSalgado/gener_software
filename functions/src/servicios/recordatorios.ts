@@ -19,6 +19,28 @@ export async function crearRecordatorioPortal(
   return { recordatorioId: ref.id };
 }
 
+export async function editarRecordatorio(
+  db: Firestore,
+  recordatorioId: string,
+  cambios: { descripcion?: string; clienteTexto?: string }
+): Promise<void> {
+  const upd: Record<string, unknown> = {};
+  if (cambios.descripcion !== undefined) {
+    const d = cambios.descripcion.trim();
+    if (!d) throw new Error('El recordatorio necesita una descripción.');
+    upd.descripcion = d;
+  }
+  if (cambios.clienteTexto !== undefined) {
+    upd.clienteTexto = cambios.clienteTexto.trim() || null;
+  }
+  if (Object.keys(upd).length === 0) return;
+  await db.doc(`recordatorios/${recordatorioId}`).update(upd);
+}
+
+export async function eliminarRecordatorio(db: Firestore, recordatorioId: string): Promise<void> {
+  await db.doc(`recordatorios/${recordatorioId}`).delete();
+}
+
 export async function marcarRecordatorio(
   db: Firestore,
   recordatorioId: string,
