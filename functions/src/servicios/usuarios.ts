@@ -81,8 +81,11 @@ export async function actualizarUsuario(
   if (cambios.activo !== undefined) upd.activo = cambios.activo;
   if (cambios.telefono !== undefined) upd.telefono = cambios.telefono.replace(/\D/g, '') || null;
 
-  const cambiaPassword = cambios.password !== undefined && cambios.password !== '';
-  if (cambiaPassword && cambios.password!.length < 6) {
+  // La contraseña puede llegar como undefined, null o '' (no cambiar); solo se
+  // toca si viene una cadena no vacía.
+  const nuevaPassword = typeof cambios.password === 'string' ? cambios.password : '';
+  const cambiaPassword = nuevaPassword !== '';
+  if (cambiaPassword && nuevaPassword.length < 6) {
     throw new Error('La contraseña debe tener al menos 6 caracteres.');
   }
 
@@ -97,7 +100,7 @@ export async function actualizarUsuario(
     if (uid) {
       const authUpd: Record<string, unknown> = {};
       if (cambios.activo !== undefined) authUpd.disabled = !cambios.activo; // deshabilita el login
-      if (cambiaPassword) authUpd.password = cambios.password;
+      if (cambiaPassword) authUpd.password = nuevaPassword;
       await getAuth().updateUser(uid, authUpd);
     }
   }
