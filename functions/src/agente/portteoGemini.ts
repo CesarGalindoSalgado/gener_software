@@ -111,6 +111,7 @@ export async function conversarConPortteoGemini(params: {
   }));
 
   // Loop agéntico: se repite mientras el modelo pida herramientas.
+  let vaciosSeguidos = 0;
   for (let vuelta = 0; vuelta < 12; vuelta++) {
     const res = await generarConReintento(ai, {
       model: MODELO,
@@ -123,8 +124,20 @@ export async function conversarConPortteoGemini(params: {
 
     const llamadas = res.functionCalls ?? [];
     if (llamadas.length === 0) {
-      return { texto: (res.text ?? '').trim() || 'Listo.' };
+      const texto = (res.text ?? '').trim();
+      if (texto) return { texto };
+      // Gemini a veces devuelve texto vacío; reintenta una vez con un empujón
+      // antes de rendirse (evita el "Listo." seco).
+      if (vaciosSeguidos < 1) {
+        vaciosSeguidos++;
+        const turnoModelo = res.candidates?.[0]?.content;
+        if (turnoModelo) contents.push(turnoModelo);
+        contents.push({ role: 'user', parts: [{ text: 'Continúa: responde al usuario con el resultado.' }] });
+        continue;
+      }
+      return { texto: 'Perdona, se me fue. ¿Me lo repites, por favor?' };
     }
+    vaciosSeguidos = 0;
 
     // Ecoar el turno del modelo (con sus functionCalls) y responder TODAS las
     // llamadas en el siguiente turno de usuario.
