@@ -447,7 +447,10 @@ async function buscarUsuarioPorTelefono(telefono: string): Promise<Usuario | nul
     .where('telefono', 'in', variantesTelefono(telefono))
     .limit(1)
     .get();
-  return q.empty ? null : (q.docs[0].data() as Usuario);
+  if (q.empty) return null;
+  // El correo es el id del documento (canónico). Algunas cuentas antiguas no
+  // tienen el campo `correo`, así que lo tomamos del id para no perderlo.
+  return { ...(q.docs[0].data() as Usuario), correo: q.docs[0].id };
 }
 
 // El bot publica aquí su estado de conexión y el QR de vinculación, para que
