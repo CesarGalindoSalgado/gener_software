@@ -162,17 +162,17 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
   {
     name: 'misRecordatorios',
     description:
-      'Lista los recordatorios PENDIENTES del usuario. Úsala cuando pregunte "¿tengo recordatorios?", "¿qué tengo pendiente?", o para ubicar el id de uno antes de marcarlo como hecho.',
+      'Lista los recordatorios PENDIENTES del usuario, numerados (1, 2, 3…). Úsala cuando pregunte "¿tengo recordatorios?", "¿qué tengo pendiente?", o antes de marcar uno como hecho. Preséntaselos numerados; no menciones ningún id.',
     input_schema: { type: 'object', properties: {} },
   },
   {
     name: 'marcarRecordatorioHecho',
     description:
-      'Marca un recordatorio como hecho. Primero llama a misRecordatorios para obtener el recordatorioId correcto; no lo adivines.',
+      'Marca un recordatorio como hecho por su NÚMERO (el que devolvió misRecordatorios). Si aún no los listaste en esta conversación, llama primero a misRecordatorios.',
     input_schema: {
       type: 'object',
-      properties: { recordatorioId: { type: 'string' } },
-      required: ['recordatorioId'],
+      properties: { numero: { type: 'number', description: 'Número del recordatorio en la lista de misRecordatorios (empezando en 1)' } },
+      required: ['numero'],
     },
   },
   {

@@ -103,7 +103,33 @@ export async function conversarConPortteoGemini(params: {
 }): Promise<RespuestaPortteo> {
   const ai = new GoogleGenAI({ apiKey: params.apiKey });
   const DECLARACIONES = declaracionesDe(params.herramientas ?? HERRAMIENTAS);
-  const SYSTEM = params.sistema ?? SYSTEM_PROMPT;
+
+  // Mini-calendario (zona Morelos) de los próximos días, YA calculado, para que
+  // el modelo RESUELVA fechas relativas por lookup (los LLM fallan en aritmética
+  // de fechas). Formato dd/mm/aaaa.
+  const fmtDia = new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Mexico_City',
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  const base = Date.now();
+  const dias: string[] = [];
+  for (let i = 0; i < 21; i++) {
+    dias.push(fmtDia.format(new Date(base + i * 86400000)).replace(',', ''));
+  }
+  const CONTEXTO_FECHA =
+    `\n\nCALENDARIO (hora de Morelos, formato dd/mm/aaaa).\nHoy es ${dias[0]}.\nPróximos días:\n` +
+    dias
+      .slice(1)
+      .map((d) => `- ${d}`)
+      .join('\n') +
+    '\n\nCuando el usuario mencione una fecha relativa ("mañana", "el viernes", "la semana que viene", "en 3 días"), ' +
+    'BÚSCALA en este calendario (no la calcules) y guárdala/muéstrala en dd/mm/aaaa. ' +
+    '"La semana que viene" es la que empieza el próximo lunes. Ejemplo: en un recordatorio pon "cotizar a X — 17/07/2026", no "el viernes".';
+
+  const SYSTEM = (params.sistema ?? SYSTEM_PROMPT) + CONTEXTO_FECHA;
 
   const contents: Content[] = params.historial.map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',

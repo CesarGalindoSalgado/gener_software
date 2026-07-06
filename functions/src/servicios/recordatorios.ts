@@ -19,19 +19,19 @@ export async function crearRecordatorioPortal(
   return { recordatorioId: ref.id };
 }
 
-// Lista los recordatorios PENDIENTES de un dueño (para consultarlos por chat).
+// Lista los recordatorios PENDIENTES de un dueño, en orden estable (por fecha de
+// creación), para consultarlos por chat. Orden estable = el "número N" significa
+// lo mismo entre listar y marcar-hecho.
 export async function listarRecordatoriosDe(
   db: Firestore,
   correo: string
 ): Promise<{ recordatorioId: string; descripcion: string; cliente: string | null }[]> {
   const q = await db.collection('recordatorios').where('duenoCorreo', '==', correo).get();
   return q.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((r) => (r as { estatus?: string }).estatus === 'pendiente')
-    .map((r) => {
-      const data = r as { descripcion?: string; clienteTexto?: string | null };
-      return { recordatorioId: r.id, descripcion: data.descripcion ?? '', cliente: data.clienteTexto ?? null };
-    });
+    .map((d) => ({ id: d.id, data: d.data() as { estatus?: string; descripcion?: string; clienteTexto?: string | null; fechaCreacion?: { toMillis?: () => number } } }))
+    .filter((r) => r.data.estatus === 'pendiente')
+    .sort((a, b) => (a.data.fechaCreacion?.toMillis?.() ?? 0) - (b.data.fechaCreacion?.toMillis?.() ?? 0))
+    .map((r) => ({ recordatorioId: r.id, descripcion: r.data.descripcion ?? '', cliente: r.data.clienteTexto ?? null }));
 }
 
 export async function editarRecordatorio(

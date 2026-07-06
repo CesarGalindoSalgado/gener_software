@@ -142,14 +142,24 @@ export function crearEjecutor(db: Firestore): EjecutorHerramientas {
 
         case 'misRecordatorios': {
           const res = await listarRecordatoriosDe(db, ctx.correo);
-          return JSON.stringify(res.length ? res : { aviso: 'No tienes recordatorios pendientes.' });
+          if (!res.length) return JSON.stringify({ aviso: 'No tienes recordatorios pendientes.' });
+          // Sin IDs: numerados para el usuario. El número sirve para marcarlos hechos.
+          return JSON.stringify(
+            res.map((r, i) => ({ numero: i + 1, descripcion: r.descripcion, cliente: r.cliente }))
+          );
         }
 
         case 'marcarRecordatorioHecho': {
-          const id = String(input.recordatorioId ?? '');
-          if (!id) throw new Error('Falta el recordatorioId (consúltalos con misRecordatorios).');
-          await marcarRecordatorio(db, id, 'hecho');
-          return JSON.stringify({ ok: true, aviso: 'Recordatorio marcado como hecho.' });
+          const numero = Number(input.numero ?? 0);
+          const lista = await listarRecordatoriosDe(db, ctx.correo);
+          const objetivo = lista[numero - 1];
+          if (!objetivo) {
+            return JSON.stringify({
+              error: `No hay un recordatorio número ${numero}. Tienes ${lista.length} pendiente(s).`,
+            });
+          }
+          await marcarRecordatorio(db, objetivo.recordatorioId, 'hecho');
+          return JSON.stringify({ ok: true, aviso: `Marcado como hecho: "${objetivo.descripcion}".` });
         }
 
         case 'consultarSeguimiento': {
