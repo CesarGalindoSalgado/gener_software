@@ -75,6 +75,30 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---- Módulo de Rutinas: operadores (superAdmin/dueño/secretaria) leen ----
+    // Todo se escribe por Cloud Functions (Admin SDK). El técnico opera por
+    // WhatsApp, no lee desde la web.
+    match /sedes/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
+    match /equipos/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
+    match /rutinas_plantilla/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
+    match /rutinas_ejecucion/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
+    match /oportunidades/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
+
     // Contadores de folio: nunca accesibles desde el cliente
     match /counters/{doc=**} {
       allow read, write: if false;

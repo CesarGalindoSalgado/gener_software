@@ -22,6 +22,16 @@ import {
   leerHistorialChat,
 } from './servicios/cotizaciones';
 import { actualizarUsuario, crearUsuario } from './servicios/usuarios';
+import {
+  actualizarEquipo,
+  actualizarRutina,
+  actualizarSede,
+  crearClienteRutinas,
+  crearEquipo,
+  crearRutina,
+  crearSede,
+  importarRutinas,
+} from './servicios/rutinas';
 import { actualizarPlantilla, crearPlantilla } from './servicios/plantillas';
 import {
   crearRecordatorioPortal,
@@ -423,6 +433,128 @@ export const actualizarUsuarioCallable = onCall({ region: REGION }, async (req) 
   } catch (e) {
     throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo actualizar.');
   }
+});
+
+// ---------- Módulo de Rutinas: catálogo (dueño/secretaria/superAdmin) ----------
+
+export const crearClienteRutinasCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  try {
+    return await crearClienteRutinas(db, String(req.data?.nombre ?? ''));
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear el cliente.');
+  }
+});
+
+export const crearSedeCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  try {
+    return await crearSede(db, {
+      clienteId: String(req.data?.clienteId ?? ''),
+      nombre: String(req.data?.nombre ?? ''),
+      direccion: req.data?.direccion ? String(req.data.direccion) : undefined,
+      responsable: req.data?.responsable ? String(req.data.responsable) : undefined,
+    });
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear la sede.');
+  }
+});
+
+export const actualizarSedeCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const sedeId = String(req.data?.sedeId ?? '');
+  if (!sedeId) throw new HttpsError('invalid-argument', 'Falta sedeId.');
+  try {
+    await actualizarSede(db, sedeId, {
+      nombre: req.data?.nombre,
+      direccion: req.data?.direccion,
+      responsable: req.data?.responsable,
+    });
+    return { ok: true };
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo actualizar.');
+  }
+});
+
+export const crearEquipoCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  try {
+    return await crearEquipo(db, {
+      sedeId: String(req.data?.sedeId ?? ''),
+      noInventario: String(req.data?.noInventario ?? ''),
+      descripcion: req.data?.descripcion ? String(req.data.descripcion) : undefined,
+      rutinaTipoId: req.data?.rutinaTipoId ? String(req.data.rutinaTipoId) : undefined,
+    });
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear el equipo.');
+  }
+});
+
+export const actualizarEquipoCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const equipoId = String(req.data?.equipoId ?? '');
+  if (!equipoId) throw new HttpsError('invalid-argument', 'Falta equipoId.');
+  try {
+    await actualizarEquipo(db, equipoId, {
+      noInventario: req.data?.noInventario,
+      descripcion: req.data?.descripcion,
+      rutinaTipoId: req.data?.rutinaTipoId,
+    });
+    return { ok: true };
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo actualizar.');
+  }
+});
+
+export const crearRutinaCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  try {
+    return await crearRutina(db, {
+      partida: req.data?.partida,
+      nombre: String(req.data?.nombre ?? ''),
+      equiposIncluidos: req.data?.equiposIncluidos,
+      refaccionesReferenciales: req.data?.refaccionesReferenciales,
+      pasos: req.data?.pasos,
+      activa: req.data?.activa,
+    });
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear la rutina.');
+  }
+});
+
+export const actualizarRutinaCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const rutinaId = String(req.data?.rutinaId ?? '');
+  if (!rutinaId) throw new HttpsError('invalid-argument', 'Falta rutinaId.');
+  try {
+    await actualizarRutina(db, rutinaId, {
+      nombre: req.data?.nombre,
+      partida: req.data?.partida,
+      equiposIncluidos: req.data?.equiposIncluidos,
+      refaccionesReferenciales: req.data?.refaccionesReferenciales,
+      pasos: req.data?.pasos,
+      activa: req.data?.activa,
+    });
+    return { ok: true };
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo actualizar.');
+  }
+});
+
+// Importa el seed de rutinas (solo superAdmin). Recibe el arreglo del JSON.
+export const importarRutinasCallable = onCall({ region: REGION, memory: '512MiB' }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ['superAdmin']);
+  const rutinas = Array.isArray(req.data?.rutinas) ? req.data.rutinas : [];
+  if (!rutinas.length) throw new HttpsError('invalid-argument', 'No se recibieron rutinas.');
+  return await importarRutinas(db, rutinas);
 });
 
 // El importador de histórico (servicios/etl.ts) se despliega como endpoint

@@ -97,3 +97,112 @@ export interface Recordatorio {
   estatus: 'pendiente' | 'hecho';
   fechaCreacion: Date;
 }
+
+// ============================================================================
+// Módulo de Rutinas (docs/Brief_ClaudeCode_Rutinas_Gener.md).
+// Principio: todo cuelga de cliente → sede → equipo (por número de inventario),
+// nunca de "Gener" hardcodeado (habilita la renta multi-inquilino futura).
+// ============================================================================
+
+export interface Sede {
+  clienteId: string;
+  nombre: string;
+  direccion?: string;
+  responsable?: string;
+}
+
+export interface Equipo {
+  sedeId: string;
+  noInventario: string; // Servicios de Salud rastrea por inventario
+  descripcion?: string;
+  rutinaTipoId?: string; // rutina_plantilla sugerida para este equipo
+}
+
+export type EvidenciaTipo = 'foto_comentario' | 'antes_despues' | 'medicion';
+
+export interface EvidenciaPaso {
+  tipo: EvidenciaTipo;
+  requiereFoto: boolean;
+  fotosAntesDespues: boolean;
+  requiereLectura: boolean;
+  unidadSugerida?: string | null;
+  graficoSugerido?: boolean;
+  rangoMin?: number;
+  rangoMax?: number;
+  rangoDefinido?: boolean;
+}
+
+export interface PasoRutina {
+  orden: number;
+  instruccion: string;
+  evidencia: EvidenciaPaso;
+}
+
+export type PartidaRutina = 'Equipo médico' | 'Equipo electromecánico';
+
+export interface RutinaPlantilla {
+  partida: PartidaRutina;
+  nombre: string;
+  activa: boolean;
+  equiposIncluidos: string[];
+  refaccionesReferenciales: string[];
+  pasos: PasoRutina[];
+}
+
+// en_proceso → completada → validada → aprobada → (firmada | faltante_firma)
+// Rama alterna desde en_proceso: cancelada.
+export type EstatusEjecucion =
+  | 'en_proceso'
+  | 'cancelada'
+  | 'completada'
+  | 'validada'
+  | 'aprobada'
+  | 'firmada'
+  | 'faltante_firma';
+
+export interface PasoEjecucion {
+  orden: number;
+  instruccion: string;
+  tipo: EvidenciaTipo;
+  comentario?: string;
+  fotos?: string[]; // URLs en Firebase Storage
+  fotoAntes?: string;
+  fotoDespues?: string;
+  lectura?: number;
+  unidad?: string;
+  cumple?: boolean; // lo decide el técnico salvo rango definido
+  fecha?: Date; // sello de tiempo del paso
+}
+
+export interface ComentarioEjecucion {
+  texto: string;
+  fotoUrl?: string;
+}
+
+export interface RutinaEjecucion {
+  folio: string | null; // null hasta aprobar (counters/reporte_{anio})
+  rutinaId: string;
+  sedeId: string;
+  equipoId: string;
+  tecnicoTelefono: string;
+  tecnicoNombre: string;
+  estatus: EstatusEjecucion;
+  inicio: Date;
+  fin?: Date;
+  pasoActual?: number; // para retomar tras pérdida de señal
+  pasos: PasoEjecucion[];
+  comentarios: ComentarioEjecucion[];
+  oportunidad?: string;
+  cancelacionRazon?: string;
+  reportePdfUrl?: string; // Drive
+  evidenciaFirmaUrl?: string; // Storage
+  faltanteFirmaRazon?: string;
+}
+
+export interface Oportunidad {
+  ejecucionId: string;
+  sedeId: string;
+  texto: string;
+  estatus: 'abierta' | 'atendida';
+  fecha: Date;
+}

@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { esperarCarga, sesion } from './sesion';
-import { ROLES_ADMIN } from './dominio/tipos';
+import { ROLES_ADMIN, ROLES_OPERADOR } from './dominio/tipos';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -54,6 +54,18 @@ const router = createRouter({
           component: () => import('./vistas/Usuarios.vue'),
           meta: { soloAdmin: true },
         },
+        {
+          path: 'rutinas',
+          name: 'rutinas',
+          component: () => import('./vistas/Rutinas.vue'),
+          meta: { soloOperador: true },
+        },
+        {
+          path: 'sedes',
+          name: 'sedes',
+          component: () => import('./vistas/Sedes.vue'),
+          meta: { soloOperador: true },
+        },
       ],
     },
   ],
@@ -72,6 +84,10 @@ router.beforeEach(async (to) => {
   }
   // Rutas solo para admin (superAdmin/dueño): la de usuarios es solo superAdmin.
   if (to.meta.soloAdmin && !ROLES_ADMIN.includes(sesion.usuario?.rol ?? 'trabajador')) {
+    return { name: 'cotizaciones' };
+  }
+  // Rutas de operador (superAdmin/dueño/secretaria): Rutinas y Sedes.
+  if (to.meta.soloOperador && !ROLES_OPERADOR.includes(sesion.usuario?.rol ?? 'trabajador')) {
     return { name: 'cotizaciones' };
   }
   return true;

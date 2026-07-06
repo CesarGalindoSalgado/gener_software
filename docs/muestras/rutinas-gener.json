@@ -1,0 +1,48 @@
+[
+  {
+    "partida": "Equipo médico",
+    "nombre": "RUTINA DE MANTENIMIENTO PREVENTIVO PARA AGITADORES Y CENTRÍFUGAS",
+    "equiposIncluidos": [
+      "Agitador de plaquetas",
+      "Agitador eléctrico rotatorio",
+      "Centrífuga con cabezal intercambiable",
+      "Centrífuga",
+      "Centrífuga de piso",
+      "Centrífuga serológica"
+    ],
+    "refaccionesReferenciales": [
+      "Bobina",
+      "Módulo de control",
+      "LCD (si aplica)",
+      "Motor",
+      "Carga de gas (si aplica)",
+      "Rotor",
+      "Sello de puerta",
+      "Disyuntor",
+      "Fuente de poder"
+    ],
+    "pasos": [
+      { "orden": 1, "instruccion": "Inspección física general del equipo", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 2, "instruccion": "Limpieza y desinfección integral interna y externa", "evidencia": { "tipo": "antes_despues", "requiereFoto": true, "fotosAntesDespues": true, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 3, "instruccion": "Revisión de cable tomacorriente y clavija", "evidencia": { "tipo": "medicion", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": true, "unidadSugerida": "A", "graficoSugerido": true } },
+      { "orden": 4, "instruccion": "Revisión de fusibles para verificar su integridad y correcto funcionamiento, sustitución en caso necesario", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 5, "instruccion": "Revisión de interruptores y panel de control", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 6, "instruccion": "Verificación de indicadores luminosos", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 7, "instruccion": "Revisión de fusibles y protecciones eléctricas", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 8, "instruccion": "Verificación de velocidad de rotación", "evidencia": { "tipo": "medicion", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": true, "unidadSugerida": "rpm", "graficoSugerido": true } },
+      { "orden": 9, "instruccion": "Revisión de temporizadores", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 10, "instruccion": "Verificación de vibraciones anormales", "evidencia": { "tipo": "medicion", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": true, "unidadSugerida": "mm/s", "graficoSugerido": true } },
+      { "orden": 11, "instruccion": "Revisión de ruidos anormales", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 12, "instruccion": "Verificación de motor eléctrico", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 13, "instruccion": "Revisión de sistema de transmisión", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 14, "instruccion": "Ajuste de bandas y poleas", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 15, "instruccion": "Lubricación de partes móviles", "evidencia": { "tipo": "antes_despues", "requiereFoto": true, "fotosAntesDespues": true, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 16, "instruccion": "Revisión de baleros y rodamientos", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 17, "instruccion": "Ajuste de tornillería y fijaciones", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 18, "instruccion": "Verificación de tapas y seguros", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } },
+      { "orden": 19, "instruccion": "Prueba funcional completa", "evidencia": { "tipo": "foto_comentario", "requiereFoto": true, "fotosAntesDespues": false, "requiereLectura": false, "unidadSugerida": null } }
+    ],
+    "id": "RUT-001",
+    "activa": true
+  }
+]

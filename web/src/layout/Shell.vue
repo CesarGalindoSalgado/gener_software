@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
-import { FileText, Users, LayoutTemplate, BellRing, LogOut, Zap, ClipboardCheck, MessageCircle } from 'lucide-vue-next';
+import { FileText, Users, LayoutTemplate, BellRing, LogOut, Zap, ClipboardCheck, MessageCircle, Wrench, Building2 } from 'lucide-vue-next';
 import { sesion, cerrarSesion } from '../sesion';
-import { ROLES_ADMIN } from '../dominio/tipos';
+import { ROLES_ADMIN, ROLES_OPERADOR } from '../dominio/tipos';
 
 const router = useRouter();
 
 const nombre = computed(() => sesion.usuario?.nombre ?? '');
 const rol = computed(() => sesion.usuario?.rol ?? 'trabajador');
 const esAdmin = computed(() => ROLES_ADMIN.includes(rol.value));
+const esOperador = computed(() => ROLES_OPERADOR.includes(rol.value));
 
 const nav = computed(() => [
   { nombre: 'Cotizaciones', ruta: 'cotizaciones', icono: FileText, visible: true },
   { nombre: 'Seguimiento', ruta: 'seguimiento', icono: ClipboardCheck, visible: true },
+  { nombre: 'Rutinas', ruta: 'rutinas', icono: Wrench, visible: esOperador.value },
+  { nombre: 'Sedes y equipos', ruta: 'sedes', icono: Building2, visible: esOperador.value },
   { nombre: 'Plantillas', ruta: 'plantillas', icono: LayoutTemplate, visible: esAdmin.value },
   { nombre: 'Usuarios', ruta: 'usuarios', icono: Users, visible: esAdmin.value },
   { nombre: 'Recordatorios', ruta: 'recordatorios', icono: BellRing, visible: esAdmin.value },
