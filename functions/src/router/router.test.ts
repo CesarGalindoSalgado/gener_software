@@ -25,14 +25,14 @@ describe('router — lista blanca y menú por rol', () => {
     const r = await procesarMensaje(ctx, mensaje('5217771112233'));
     expect(r?.texto).toContain('Gabriel');
     expect(r?.texto).toContain('histórico');
-    expect(r?.texto).toContain('recordatorio');
+    expect(r?.texto).toMatch(/recordatorio/i);
     expect(r?.texto).toContain('Porttea-Gener');
   });
 
   it('la secretaria recibe menú de consulta sin recordatorios', async () => {
     const r = await procesarMensaje(ctx, mensaje('5217774445566'));
     expect(r?.texto).toContain('borrador');
-    expect(r?.texto).not.toContain('recordatorio');
+    expect(r?.texto).not.toMatch(/recordatorio/i);
   });
 
   it('un número desconocido se ignora (sin respuesta)', async () => {

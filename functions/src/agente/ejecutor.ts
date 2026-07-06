@@ -8,11 +8,13 @@ import {
   buscarHistorico,
   clonarComoBase,
   consultarCotizaciones,
+  consultarSeguimiento,
   crearBorrador,
   crearRecordatorio,
   listarPlantillas,
   quitarBloque,
 } from '../servicios/cotizaciones';
+import { listarRecordatoriosDe, marcarRecordatorio } from '../servicios/recordatorios';
 import { ContextoEjecucion, EjecutorHerramientas } from './herramientas';
 
 // Implementación real (fase 2) del contrato de herramientas: conecta el LLM
@@ -136,6 +138,25 @@ export function crearEjecutor(db: Firestore): EjecutorHerramientas {
             clienteTexto: input.clienteTexto as string | undefined,
           });
           return JSON.stringify({ ...res, aviso: 'Recordatorio guardado.' });
+        }
+
+        case 'misRecordatorios': {
+          const res = await listarRecordatoriosDe(db, ctx.correo);
+          return JSON.stringify(res.length ? res : { aviso: 'No tienes recordatorios pendientes.' });
+        }
+
+        case 'marcarRecordatorioHecho': {
+          const id = String(input.recordatorioId ?? '');
+          if (!id) throw new Error('Falta el recordatorioId (consúltalos con misRecordatorios).');
+          await marcarRecordatorio(db, id, 'hecho');
+          return JSON.stringify({ ok: true, aviso: 'Recordatorio marcado como hecho.' });
+        }
+
+        case 'consultarSeguimiento': {
+          const res = await consultarSeguimiento(db);
+          return JSON.stringify(
+            res.length ? res : { aviso: 'No hay cotizaciones enviadas sin cerrar.' }
+          );
         }
 
         default:

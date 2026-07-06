@@ -274,6 +274,24 @@ export async function buscarHistorico(
   });
 }
 
+// Cotizaciones ENVIADAS sin cerrar (esperando respuesta del cliente), con su
+// antigüedad en días. Para consultas de seguimiento por chat.
+export async function consultarSeguimiento(db: Firestore): Promise<unknown[]> {
+  const snap = await db.collection('cotizaciones').where('estatus', '==', 'enviada').limit(50).get();
+  const hoy = Date.now();
+  return snap.docs.map((d) => {
+    const c = d.data();
+    const env = c.fechaEnvio?.toDate?.();
+    const dias = env ? Math.floor((hoy - env.getTime()) / 86400000) : null;
+    return {
+      folio: c.folio ?? null,
+      cliente: c.cliente?.nombre ?? null,
+      asunto: c.titulo ?? null,
+      diasDesdeEnvio: dias,
+    };
+  });
+}
+
 export async function crearRecordatorio(
   db: Firestore,
   params: { correo: string; descripcion: string; clienteTexto?: string }

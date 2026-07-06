@@ -19,6 +19,21 @@ export async function crearRecordatorioPortal(
   return { recordatorioId: ref.id };
 }
 
+// Lista los recordatorios PENDIENTES de un dueño (para consultarlos por chat).
+export async function listarRecordatoriosDe(
+  db: Firestore,
+  correo: string
+): Promise<{ recordatorioId: string; descripcion: string; cliente: string | null }[]> {
+  const q = await db.collection('recordatorios').where('duenoCorreo', '==', correo).get();
+  return q.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((r) => (r as { estatus?: string }).estatus === 'pendiente')
+    .map((r) => {
+      const data = r as { descripcion?: string; clienteTexto?: string | null };
+      return { recordatorioId: r.id, descripcion: data.descripcion ?? '', cliente: data.clienteTexto ?? null };
+    });
+}
+
 export async function editarRecordatorio(
   db: Firestore,
   recordatorioId: string,

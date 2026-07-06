@@ -159,6 +159,28 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
       required: ['descripcion'],
     },
   },
+  {
+    name: 'misRecordatorios',
+    description:
+      'Lista los recordatorios PENDIENTES del usuario. Úsala cuando pregunte "¿tengo recordatorios?", "¿qué tengo pendiente?", o para ubicar el id de uno antes de marcarlo como hecho.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'marcarRecordatorioHecho',
+    description:
+      'Marca un recordatorio como hecho. Primero llama a misRecordatorios para obtener el recordatorioId correcto; no lo adivines.',
+    input_schema: {
+      type: 'object',
+      properties: { recordatorioId: { type: 'string' } },
+      required: ['recordatorioId'],
+    },
+  },
+  {
+    name: 'consultarSeguimiento',
+    description:
+      'Lista las cotizaciones ENVIADAS que siguen sin cerrar (esperando respuesta del cliente), con su antigüedad en días. Úsala para "¿qué está en seguimiento?", "¿qué cotizaciones tengo pendientes de que el cliente conteste?".',
+    input_schema: { type: 'object', properties: {} },
+  },
 ];
 
 // Contrato que la fase 2 implementa con Firestore. Cada método regresa un

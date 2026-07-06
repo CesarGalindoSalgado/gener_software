@@ -26,8 +26,9 @@ const MENU_DUENO = [
   'Por aquí te ayudo a consultar (para armar y aprobar, entra a Porttea-Gener en la web):',
   '• Buscar un precio del histórico',
   '• Consultar una cotización pasada (por folio o cliente)',
+  '• Ver el seguimiento (enviadas sin cerrar)',
   '• Ver las plantillas de servicios',
-  '• Guardar un recordatorio ("recuérdame cotizar a X")',
+  '• Recordatorios: crear, ver los pendientes y marcarlos hechos',
   '',
   'Escríbeme lo que necesitas 🙂',
 ].join('\n');
@@ -36,6 +37,7 @@ const MENU_SECRETARIA = [
   'Por aquí te ayudo a consultar (para armar un borrador, entra a Porttea-Gener en la web):',
   '• Buscar un precio del histórico',
   '• Consultar una cotización pasada (por folio o cliente)',
+  '• Ver el seguimiento (enviadas sin cerrar)',
   '• Ver las plantillas de servicios',
   '',
   'Escríbeme lo que necesitas 🙂',
