@@ -47,6 +47,8 @@ export interface SalientePendiente {
   id: string;
   telefono: string;
   texto: string;
+  documentoUrl?: string | null;
+  fileName?: string | null;
 }
 
 // Encola un mensaje con id determinista: si ya existe (misma clave), no hace
@@ -76,14 +78,18 @@ export async function encolarSalienteUnico(
 
 // Encola un mensaje con id automático (cada llamada = un envío). Para avisos
 // que sí deben ser únicos por día, usar encolarSalienteUnico.
+// Si se pasa `documentoUrl`, el bot renderiza ESA URL a PDF y la envía como
+// documento adjunto (con `texto` de caption y `fileName` de nombre de archivo).
 export async function encolarSaliente(
   db: Firestore,
-  params: { telefono: string; texto: string; motivo?: string }
+  params: { telefono: string; texto: string; motivo?: string; documentoUrl?: string; fileName?: string }
 ): Promise<void> {
   await db.collection('mensajes_salientes').add({
     telefono: params.telefono,
     texto: params.texto,
     motivo: params.motivo ?? null,
+    documentoUrl: params.documentoUrl ?? null,
+    fileName: params.fileName ?? null,
     estatus: 'pendiente',
     creadoEn: FieldValue.serverTimestamp(),
     enviadoEn: null,
@@ -103,6 +109,8 @@ export async function salientesPendientes(
     id: d.id,
     telefono: String(d.data().telefono ?? ''),
     texto: String(d.data().texto ?? ''),
+    documentoUrl: d.data().documentoUrl ?? null,
+    fileName: d.data().fileName ?? null,
   }));
 }
 

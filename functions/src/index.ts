@@ -678,11 +678,12 @@ export const enviarCotizacionCliente = onCall(
     const secreto = process.env.WHATSAPP_WEBHOOK_SECRET ?? '';
     const enlace = `${BASE_FUNCIONES}/verCotizacion?token=${firmarEnlace(secreto, cotizacionId)}`;
     const saludo = cot.cliente?.atencion ? `Hola ${cot.cliente.atencion}` : 'Hola';
-    const texto =
-      `${saludo}, le compartimos su cotización *${cot.folio}* de Gener Power & Control:\n${enlace}\n\n` +
-      `El enlace muestra el documento completo. Quedamos atentos.`;
+    const texto = `${saludo}, le compartimos su cotización ${cot.folio} de Gener Power & Control. Quedamos atentos.`;
+    const fileName = `Cotizacion ${cot.folio}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
 
-    await encolarSaliente(db, { telefono, texto, motivo: 'cotizacion_cliente' });
+    // El bot renderiza `documentoUrl` a PDF y lo manda como adjunto (con `texto`
+    // de caption). Si el PDF fallara, el bot cae a enviar el enlace como texto.
+    await encolarSaliente(db, { telefono, texto, motivo: 'cotizacion_cliente', documentoUrl: enlace, fileName });
 
     // Guarda el teléfono en el cliente para la próxima vez.
     if (cot.clienteId && !cot.cliente?.telefono) {

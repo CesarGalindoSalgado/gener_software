@@ -6,6 +6,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import puppeteer from 'puppeteer';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -106,13 +107,58 @@ async function procesarColaSalientes() {
     if (!m?.id || !m?.telefono || !m?.texto) continue;
     const jid = `${String(m.telefono).replace(/\D/g, '')}@s.whatsapp.net`;
     try {
-      await socketActivo.sendMessage(jid, { text: m.texto });
+      if (m.documentoUrl) {
+        // Renderiza la cotización a PDF y la manda como documento adjunto.
+        try {
+          const pdf = await urlAPdf(m.documentoUrl);
+          await socketActivo.sendMessage(jid, {
+            document: pdf,
+            mimetype: 'application/pdf',
+            fileName: m.fileName || 'Cotizacion.pdf',
+            caption: m.texto,
+          });
+          console.log(`📄 PDF entregado a ${m.telefono}.`);
+        } catch (errPdf) {
+          // Si el PDF falla, no dejamos al cliente sin nada: mandamos el enlace.
+          console.error(`Falló el PDF (${m.id}), envío el enlace:`, errPdf?.message ?? errPdf);
+          await socketActivo.sendMessage(jid, { text: `${m.texto}\n${m.documentoUrl}` });
+        }
+      } else {
+        await socketActivo.sendMessage(jid, { text: m.texto });
+        console.log(`📤 Aviso entregado a ${m.telefono}.`);
+      }
       await marcarSaliente(m.id, 'enviado');
-      console.log(`📤 Aviso entregado a ${m.telefono}.`);
     } catch (e) {
       console.error(`No se pudo entregar el aviso ${m.id}:`, e?.message ?? e);
       await marcarSaliente(m.id, 'error', e?.message);
     }
+  }
+}
+
+// Navegador headless compartido para renderizar cotizaciones a PDF. Se lanza
+// una sola vez (perezoso) y se reutiliza.
+let navegador = null;
+async function obtenerNavegador() {
+  if (navegador && navegador.isConnected()) return navegador;
+  navegador = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  return navegador;
+}
+
+// Renderiza una URL (el enlace de la cotización) a PDF tamaño carta y devuelve
+// el Buffer. Texto vectorial (mejor calidad que el html2pdf del portal).
+async function urlAPdf(url) {
+  const browser = await obtenerNavegador();
+  const page = await browser.newPage();
+  try {
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    const pdf = await page.pdf({
+      format: 'letter',
+      printBackground: true,
+      margin: { top: '12mm', bottom: '12mm', left: '10mm', right: '10mm' },
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await page.close().catch(() => {});
   }
 }
 
