@@ -3,11 +3,12 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   useMultiFileAuthState,
-} from '@whiskeysockets/baileys';
+} from 'baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import puppeteer from 'puppeteer';
 import path from 'node:path';
+import { rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 // Bot de WhatsApp para Portteo. Es SOLO transporte: reenvía los mensajes de los
@@ -91,6 +92,7 @@ async function enviarAlWebhook(payload) {
 async function procesarColaSalientes() {
   if (!COLA_URL || !socketActivo) return;
   let mensajes = [];
+  let comando = null;
   try {
     const res = await fetch(COLA_URL, {
       method: 'GET',
@@ -98,8 +100,23 @@ async function procesarColaSalientes() {
     });
     const data = await res.json().catch(() => ({}));
     mensajes = Array.isArray(data?.mensajes) ? data.mensajes : [];
+    comando = data?.comando ?? null;
   } catch (e) {
     console.error('No se pudo leer la cola de salientes:', e?.message ?? e);
+    return;
+  }
+
+  // El portal pidió desconectar: limpiamos el comando (para no repetir) y
+  // cerramos la sesión. El logout dispara connection.close 'loggedOut', que
+  // borra bot/auth y reinicia para mostrar un QR nuevo.
+  if (comando === 'desconectar') {
+    console.log('🔌 Desconexión solicitada desde el portal.');
+    await avisarComandoHecho();
+    try {
+      await socketActivo.logout();
+    } catch (e) {
+      console.error('No se pudo cerrar la sesión:', e?.message ?? e);
+    }
     return;
   }
 
@@ -162,6 +179,19 @@ async function urlAPdf(url) {
   }
 }
 
+// Avisa a la Cloud Function que el comando pendiente ya se ejecutó (lo limpia).
+async function avisarComandoHecho() {
+  try {
+    await fetch(COLA_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-webhook-secret': WEBHOOK_SECRET },
+      body: JSON.stringify({ comandoHecho: true }),
+    });
+  } catch (e) {
+    console.error('No se pudo limpiar el comando:', e?.message ?? e);
+  }
+}
+
 async function marcarSaliente(id, estatus, motivo) {
   try {
     await fetch(COLA_URL, {
@@ -209,7 +239,14 @@ async function iniciar() {
       console.log(`Conexión cerrada (código ${code}).`);
       publicarEstado({ estado: cerroSesion ? 'desvinculado' : 'desconectado', qr: null });
       if (cerroSesion) {
-        console.log('Sesión cerrada desde el teléfono. Borra la carpeta bot/auth y vuelve a vincular.');
+        // Sesión cerrada (desde el teléfono o desde el portal): borramos las
+        // credenciales y reiniciamos para emitir un QR nuevo automáticamente.
+        console.log('Sesión cerrada. Limpio bot/auth y reinicio para mostrar un QR nuevo…');
+        rm(path.join(__dirname, 'auth'), { recursive: true, force: true })
+          .catch((e) => console.error('No se pudo borrar bot/auth:', e?.message ?? e))
+          .finally(() => {
+            setTimeout(() => iniciar().catch((e) => console.error('Fallo al reiniciar:', e?.message ?? e)), 2000);
+          });
       } else {
         // Backoff para no martillar a WhatsApp (evita el loop rápido de 405).
         console.log('Reconectando en 3s…');
@@ -228,20 +265,29 @@ async function iniciar() {
       const texto = textoDeMensaje(m);
       if (!texto) continue;
 
-      const telefono = telefonoReal(m) ?? telefonoDeJid(jid);
+      const pn = telefonoReal(m);
+      const telefono = pn ?? telefonoDeJid(jid);
+      // El @lid en Baileys 6.7.x entrega mal (el mensaje llega y WhatsApp lo
+      // borra). Con sesión limpia, respondemos al JID canónico del número real
+      // (@s.whatsapp.net), que es el direccionamiento más estable.
+      const jidRespuesta = pn ? `${pn}@s.whatsapp.net` : jid;
+      console.log(`📩 Mensaje de ${telefono} (jid ${jid}) → respondo a ${jidRespuesta}: "${texto.slice(0, 40)}"`);
 
       try {
-        await sock.sendPresenceUpdate('composing', jid);
+        await sock.sendPresenceUpdate('composing', jidRespuesta);
         const data = await enviarAlWebhook({ from: telefono, body: texto, pushName: m.pushName });
         if (data?.texto) {
-          await sock.sendMessage(jid, { text: data.texto });
+          await sock.sendMessage(jidRespuesta, { text: data.texto });
+          console.log(`✅ Respondido a ${telefono}.`);
+        } else {
+          console.log(`↪️ Sin respuesta (número fuera de lista o ignorado): ${telefono}.`);
         }
         // Si el número no está en la lista blanca, el webhook responde
         // { ignorado: true } y no contestamos (regla del brief).
       } catch (e) {
         console.error('Error procesando mensaje:', e?.message ?? e);
       } finally {
-        await sock.sendPresenceUpdate('paused', jid);
+        await sock.sendPresenceUpdate('paused', jidRespuesta);
       }
     }
   });

@@ -54,7 +54,7 @@ function fechaCorta(c: CotizacionDoc): string {
 </script>
 
 <template>
-  <div class="p-8 max-w-5xl">
+  <div class="p-8">
     <p class="eyebrow eyebrow--marca">Porttea-Gener</p>
     <div class="flex items-end justify-between">
       <div>

@@ -4,6 +4,7 @@ import { RouterLink, useRoute } from 'vue-router';
 import { ArrowLeft, Plus, Trash2, MessageSquare, Send, LoaderCircle, FileDown, GitBranch, MessageCircle } from 'lucide-vue-next';
 import html2pdf from 'html2pdf.js';
 import DocumentoCotizacion from '../components/DocumentoCotizacion.vue';
+import { confirmar } from '../components/confirmar';
 import type { BorradorCotizacion } from '../dominio/tipos';
 import { ROLES_ADMIN } from '../dominio/tipos';
 import { sesion } from '../sesion';
@@ -137,7 +138,11 @@ const puedeRevisar = computed(
 const revisando = ref(false);
 async function nuevaRevision() {
   if (!cotizacionId.value || revisando.value) return;
-  if (!confirm('¿Crear una nueva revisión? Se copia el contenido a una versión nueva (mismo folio) y vuelve a borrador para editar.')) return;
+  if (!(await confirmar({
+    titulo: 'Nueva revisión',
+    mensaje: 'Se copia el contenido a una versión nueva (mismo folio) y vuelve a borrador para editar.',
+    confirmar: 'Crear revisión',
+  }))) return;
   revisando.value = true;
   error.value = '';
   try {
@@ -159,7 +164,11 @@ const envioOk = ref(false);
 
 async function aprobar() {
   if (!cotizacionId.value || aprobando.value) return;
-  if (!confirm('¿Aprobar esta cotización? Se asignará el folio definitivo.')) return;
+  if (!(await confirmar({
+    titulo: 'Aprobar cotización',
+    mensaje: 'Se asignará el folio definitivo y pasará a enviada. Esta acción no se puede revertir.',
+    confirmar: 'Aprobar',
+  }))) return;
   error.value = '';
   aprobando.value = true;
   try {

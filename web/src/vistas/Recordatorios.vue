@@ -11,6 +11,7 @@ import {
   type RecordatorioDoc,
 } from '../servicios/recordatorios';
 import { crearCotizacion } from '../servicios/cotizaciones';
+import { confirmar } from '../components/confirmar';
 
 const router = useRouter();
 
@@ -91,7 +92,12 @@ async function guardarEdicion() {
 }
 
 async function eliminar(r: RecordatorioDoc) {
-  if (!confirm(`¿Eliminar el recordatorio "${r.descripcion}"? No se puede deshacer.`)) return;
+  if (!(await confirmar({
+    titulo: 'Eliminar recordatorio',
+    mensaje: `Se eliminará "${r.descripcion}". No se puede deshacer.`,
+    confirmar: 'Eliminar',
+    peligro: true,
+  }))) return;
   procesando.value = r.id;
   error.value = '';
   try {
@@ -120,7 +126,7 @@ async function convertir(r: RecordatorioDoc) {
 </script>
 
 <template>
-  <div class="p-8 max-w-4xl">
+  <div class="p-8">
     <p class="eyebrow eyebrow--marca">Recordatorios</p>
     <h1 class="text-4xl mb-1">No se te <span class="italic text-brand-text">olvide</span></h1>
     <div class="h-0.5 w-[90px] bg-brand"></div>

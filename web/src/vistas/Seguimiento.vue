@@ -7,6 +7,7 @@ import {
   suscribirSeguimiento,
   type CotizacionDoc,
 } from '../servicios/cotizaciones';
+import { confirmar } from '../components/confirmar';
 
 const router = useRouter();
 const items = ref<({ id: string } & CotizacionDoc)[]>([]);
@@ -42,8 +43,15 @@ function claseAging(dias: number): string {
 const totalUrgentes = computed(() => items.value.filter((c) => diasDesde(c) >= 7).length);
 
 async function marcar(id: string, estatus: 'autorizada' | 'rechazada') {
-  const verbo = estatus === 'autorizada' ? 'autorizar (el cliente la aceptó)' : 'rechazar';
-  if (!confirm(`¿Marcar como ${verbo}?`)) return;
+  const esAutorizar = estatus === 'autorizada';
+  if (!(await confirmar({
+    titulo: esAutorizar ? 'Marcar como autorizada' : 'Marcar como rechazada',
+    mensaje: esAutorizar
+      ? 'Confirma que el cliente aceptó esta cotización.'
+      : 'La cotización quedará marcada como rechazada.',
+    confirmar: esAutorizar ? 'Autorizar' : 'Rechazar',
+    peligro: !esAutorizar,
+  }))) return;
   procesando.value = id;
   error.value = '';
   try {
@@ -58,7 +66,7 @@ async function marcar(id: string, estatus: 'autorizada' | 'rechazada') {
 </script>
 
 <template>
-  <div class="p-8 max-w-5xl">
+  <div class="p-8">
     <p class="eyebrow eyebrow--marca">Seguimiento</p>
     <h1 class="text-4xl mb-1">Cotizaciones <span class="italic text-brand-text">enviadas</span></h1>
     <div class="h-0.5 w-[90px] bg-brand"></div>

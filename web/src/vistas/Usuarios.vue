@@ -113,7 +113,7 @@ const total = computed(() => usuarios.value.length);
 </script>
 
 <template>
-  <div class="p-8 max-w-4xl">
+  <div class="p-8">
     <p class="eyebrow eyebrow--marca">Administración</p>
     <div class="flex items-end justify-between">
       <div>

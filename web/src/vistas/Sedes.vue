@@ -100,7 +100,7 @@ function seleccionarCliente(id: string) {
 </script>
 
 <template>
-  <div class="p-8 max-w-6xl">
+  <div class="p-8">
     <p class="eyebrow eyebrow--marca">Homologación</p>
     <h1 class="text-4xl mb-1">Sedes y <span class="italic text-brand-text">equipos</span></h1>
     <div class="h-0.5 w-[90px] bg-brand"></div>

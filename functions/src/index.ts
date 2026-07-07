@@ -557,6 +557,18 @@ export const importarRutinasCallable = onCall({ region: REGION, memory: '512MiB'
   return await importarRutinas(db, rutinas);
 });
 
+// El portal (admin) pide cerrar la sesión de WhatsApp. Deja el comando en
+// sistema/whatsapp; el bot lo lee por colaSalientes, hace logout y vuelve a
+// mostrar el QR. Idempotente: escribir dos veces no hace daño.
+export const comandoWhatsappCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_ADMIN);
+  const comando = String(req.data?.comando ?? '');
+  if (comando !== 'desconectar') throw new HttpsError('invalid-argument', 'Comando no soportado.');
+  await db.doc('sistema/whatsapp').set({ comando }, { merge: true });
+  return { ok: true };
+});
+
 // El importador de histórico (servicios/etl.ts) se despliega como endpoint
 // temporal protegido por token cuando hay que cargar el corpus. Ver
 // docs/ETL_HISTORICO.md para reactivarlo y cargar el corpus completo.
@@ -720,10 +732,19 @@ export const colaSalientes = onRequest(
     }
     if (req.method === 'GET') {
       const mensajes = await salientesPendientes(db, 20);
-      res.status(200).json({ mensajes });
+      // El portal puede pedir desconectar la sesión: lo leemos aquí y el bot lo ejecuta.
+      const estadoSnap = await db.doc('sistema/whatsapp').get();
+      const comando = estadoSnap.exists ? (estadoSnap.get('comando') ?? null) : null;
+      res.status(200).json({ mensajes, comando });
       return;
     }
     if (req.method === 'POST') {
+      // El bot avisa que ya ejecutó el comando (p. ej. 'desconectar') → lo limpiamos.
+      if (req.body?.comandoHecho) {
+        await db.doc('sistema/whatsapp').set({ comando: null }, { merge: true });
+        res.status(200).json({ ok: true });
+        return;
+      }
       const id = String(req.body?.id ?? '');
       if (!id) {
         res.status(400).json({ error: 'Falta id' });

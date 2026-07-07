@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router';
 import { sesion } from './sesion';
+import ConfirmDialog from './components/ConfirmDialog.vue';
 </script>
 
 <template>
@@ -8,4 +9,5 @@ import { sesion } from './sesion';
     <p class="eyebrow">Cargando…</p>
   </div>
   <RouterView v-else />
+  <ConfirmDialog />
 </template>

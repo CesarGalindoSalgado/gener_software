@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onUnmounted, ref, watch } from 'vue';
 import { doc, onSnapshot, type Timestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import QRCode from 'qrcode';
-import { Smartphone, CheckCircle2, RefreshCw, WifiOff, LoaderCircle } from 'lucide-vue-next';
-import { db } from '../firebase';
+import { Smartphone, CheckCircle2, RefreshCw, WifiOff, LoaderCircle, LogOut } from 'lucide-vue-next';
+import { db, functions } from '../firebase';
+import { confirmar } from '../components/confirmar';
 
 interface EstadoWhatsApp {
   estado?: 'esperando_qr' | 'conectado' | 'desconectado' | 'desvinculado' | null;
@@ -36,10 +38,32 @@ watch(
 );
 
 const conectado = () => estado.value?.estado === 'conectado';
+
+// Desconectar: pide al bot cerrar la sesión. Volverá a mostrar un QR nuevo.
+const callableComando = httpsCallable<{ comando: string }, { ok: boolean }>(functions, 'comandoWhatsappCallable');
+const desconectando = ref(false);
+const errorComando = ref('');
+async function desconectar() {
+  if (!(await confirmar({
+    titulo: 'Desconectar WhatsApp',
+    mensaje: 'El bot se desvinculará y mostrará un QR nuevo para volver a conectar.',
+    confirmar: 'Desconectar',
+    peligro: true,
+  }))) return;
+  desconectando.value = true;
+  errorComando.value = '';
+  try {
+    await callableComando({ comando: 'desconectar' });
+  } catch (e: unknown) {
+    errorComando.value = (e as { message?: string })?.message ?? 'No se pudo desconectar.';
+  } finally {
+    desconectando.value = false;
+  }
+}
 </script>
 
 <template>
-  <div class="p-8 max-w-3xl">
+  <div class="p-8 max-w-3xl mx-auto">
     <p class="eyebrow eyebrow--marca">Integración</p>
     <h1 class="text-4xl mb-1">WhatsApp</h1>
     <div class="h-0.5 w-[90px] bg-brand"></div>
@@ -62,6 +86,15 @@ const conectado = () => estado.value?.estado === 'conectado';
           Número del bot: <span class="font-mono">{{ estado.numero }}</span>
         </p>
         <p class="text-sm text-muted-ink mt-3">El bot está en línea y responde a los números de la lista blanca.</p>
+        <button
+          @click="desconectar"
+          :disabled="desconectando"
+          class="mt-6 inline-flex items-center gap-2 h-10 px-5 rounded-md border border-danger/40 text-sm font-medium text-danger hover:bg-danger/5 disabled:opacity-50"
+        >
+          <LoaderCircle v-if="desconectando" :size="16" class="animate-spin" /><LogOut v-else :size="16" />
+          {{ desconectando ? 'Desconectando…' : 'Desconectar' }}
+        </button>
+        <p v-if="errorComando" class="text-sm text-danger mt-3">{{ errorComando }}</p>
       </div>
 
       <!-- Esperando escaneo (hay QR) -->

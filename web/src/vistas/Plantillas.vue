@@ -62,18 +62,38 @@ async function alternarActiva(p: PlantillaDoc) {
   }
 }
 
-// --- Alta ---
+// --- Alta (en modal) ---
 const creando = ref(false);
-async function nueva() {
+const modalAbierto = ref(false);
+const nuevo = reactive({ nombre: '', descripcion: '', precio: '' as string | number, lineasTexto: '' });
+
+function abrirModal() {
+  nuevo.nombre = '';
+  nuevo.descripcion = '';
+  nuevo.precio = '';
+  nuevo.lineasTexto = '';
+  error.value = '';
+  modalAbierto.value = true;
+}
+function cerrarModal() {
+  if (creando.value) return;
+  modalAbierto.value = false;
+}
+async function crear() {
+  if (!nuevo.nombre.trim()) {
+    error.value = 'El nombre es obligatorio.';
+    return;
+  }
   creando.value = true;
   error.value = '';
   try {
-    const { plantillaId } = await crearPlantilla({ nombre: 'Nueva plantilla', lineas: [] });
-    // Abre en edición la recién creada.
-    setTimeout(() => {
-      const p = plantillas.value.find((x) => x.plantillaId === plantillaId);
-      if (p) abrirEdicion(p);
-    }, 400);
+    await crearPlantilla({
+      nombre: nuevo.nombre.trim(),
+      descripcion: nuevo.descripcion.trim() || undefined,
+      precioSugerido: nuevo.precio === '' ? null : Number(nuevo.precio),
+      lineas: nuevo.lineasTexto.split('\n').map((l) => l.trim()).filter(Boolean),
+    });
+    modalAbierto.value = false;
   } catch (e: unknown) {
     error.value = (e as { message?: string })?.message ?? 'No se pudo crear.';
   } finally {
@@ -83,7 +103,7 @@ async function nueva() {
 </script>
 
 <template>
-  <div class="p-8 max-w-4xl">
+  <div class="p-8">
     <p class="eyebrow eyebrow--marca">Administración</p>
     <div class="flex items-end justify-between">
       <div>
@@ -91,11 +111,10 @@ async function nueva() {
         <div class="h-0.5 w-[90px] bg-brand"></div>
       </div>
       <button
-        @click="nueva"
-        :disabled="creando"
-        class="flex items-center gap-2 h-10 px-4 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent-bright disabled:opacity-50"
+        @click="abrirModal"
+        class="flex items-center gap-2 h-10 px-4 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent-bright"
       >
-        <LoaderCircle v-if="creando" :size="15" class="animate-spin" /><Plus v-else :size="16" /> Nueva plantilla
+        <Plus :size="16" /> Nueva plantilla
       </button>
     </div>
 
@@ -186,6 +205,52 @@ async function nueva() {
         <div class="border border-dashed border-line-strong rounded-lg p-8">
           <LayoutTemplate :size="28" class="mx-auto text-muted-ink mb-3" />
           <p class="text-muted-ink text-sm">No hay plantillas. Crea la primera.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: nueva plantilla -->
+    <div v-if="modalAbierto" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="cerrarModal">
+      <div class="bg-card rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div class="flex items-start justify-between p-6 border-b border-line">
+          <div>
+            <p class="eyebrow eyebrow--marca">Administración</p>
+            <h2 class="text-2xl leading-tight">Nueva plantilla</h2>
+          </div>
+          <button @click="cerrarModal" class="text-muted-ink hover:text-ink"><X :size="20" /></button>
+        </div>
+
+        <div class="overflow-auto p-6 space-y-3">
+          <div>
+            <label class="eyebrow block mb-1">Nombre</label>
+            <input v-model="nuevo.nombre" placeholder="Ej. Mantenimiento preventivo" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
+          </div>
+          <div>
+            <label class="eyebrow block mb-1">Descripción</label>
+            <input v-model="nuevo.descripcion" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
+          </div>
+          <div>
+            <label class="eyebrow block mb-1">Precio sugerido (MXN, vacío = sin precio)</label>
+            <input v-model="nuevo.precio" type="number" min="0" step="0.01" class="w-48 h-10 px-3 rounded-md border border-line bg-white text-sm" />
+          </div>
+          <div>
+            <label class="eyebrow block mb-1">Líneas de alcance (una por renglón)</label>
+            <textarea v-model="nuevo.lineasTexto" rows="7" class="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"></textarea>
+          </div>
+          <p v-if="error" class="text-sm text-danger">{{ error }}</p>
+        </div>
+
+        <div class="flex justify-end gap-2 p-4 border-t border-line">
+          <button @click="cerrarModal" :disabled="creando" class="h-10 px-4 rounded-md border border-line-strong text-sm text-ink-2 hover:border-accent disabled:opacity-50">
+            Cancelar
+          </button>
+          <button
+            @click="crear"
+            :disabled="creando"
+            class="h-10 px-5 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent-bright disabled:opacity-50 flex items-center gap-2"
+          >
+            <LoaderCircle v-if="creando" :size="15" class="animate-spin" /><Check v-else :size="15" /> Crear plantilla
+          </button>
         </div>
       </div>
     </div>
