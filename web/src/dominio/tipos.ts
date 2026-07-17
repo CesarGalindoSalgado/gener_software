@@ -26,7 +26,6 @@ export interface Usuario {
 // El precio vive en la partida (bloque); las líneas son alcance sin precio.
 export interface Partida {
   titulo: string;
-  descripcion?: string;
   lineas: string[];
   cantidad: number;
   importe: number;
@@ -49,4 +48,5 @@ export interface BorradorCotizacion {
   partidas: Partida[];
   formaPago: string;
   tiempoEntrega: string;
+  notas?: string;
 }

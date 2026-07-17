@@ -9,16 +9,17 @@ export interface UsuarioDoc {
   rol: Rol;
   activo: boolean;
   telefono?: string | null;
+  telegramChatId?: string | null;
   creadoEn?: Timestamp | null;
 }
 
 const callableCrear = httpsCallable<
-  { correo: string; nombre: string; rol: Rol; password: string; telefono?: string },
+  { correo: string; nombre: string; rol: Rol; password: string; telefono?: string; telegramChatId?: string },
   { ok: boolean }
 >(functions, 'crearUsuarioCallable');
 
 const callableActualizar = httpsCallable<
-  { correo: string; nombre?: string; rol?: Rol; activo?: boolean; telefono?: string; password?: string },
+  { correo: string; nombre?: string; rol?: Rol; activo?: boolean; telefono?: string; telegramChatId?: string; password?: string },
   { ok: boolean }
 >(functions, 'actualizarUsuarioCallable');
 
@@ -28,6 +29,7 @@ export async function crearUsuario(datos: {
   rol: Rol;
   password: string;
   telefono?: string;
+  telegramChatId?: string;
 }) {
   return (await callableCrear(datos)).data;
 }
@@ -38,6 +40,7 @@ export async function actualizarUsuario(datos: {
   rol?: Rol;
   activo?: boolean;
   telefono?: string;
+  telegramChatId?: string;
   password?: string;
 }) {
   return (await callableActualizar(datos)).data;

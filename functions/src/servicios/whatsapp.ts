@@ -83,8 +83,8 @@ export async function encolarSalienteUnico(
 export async function encolarSaliente(
   db: Firestore,
   params: { telefono: string; texto: string; motivo?: string; documentoUrl?: string; fileName?: string }
-): Promise<void> {
-  await db.collection('mensajes_salientes').add({
+): Promise<{ mensajeId: string }> {
+  const ref = await db.collection('mensajes_salientes').add({
     telefono: params.telefono,
     texto: params.texto,
     motivo: params.motivo ?? null,
@@ -94,6 +94,7 @@ export async function encolarSaliente(
     creadoEn: FieldValue.serverTimestamp(),
     enviadoEn: null,
   });
+  return { mensajeId: ref.id };
 }
 
 export async function salientesPendientes(
@@ -114,15 +115,17 @@ export async function salientesPendientes(
   }));
 }
 
+// Estados del saliente: pendiente → enviado → entregado (acuse ✓✓ del teléfono).
+// 'sin_confirmar' = WhatsApp aceptó pero nunca dio acuse de entrega (típico
+// filtro anti-spam hacia números que no conocen al bot). 'error' = falló.
 export async function marcarSaliente(
   db: Firestore,
   id: string,
-  estatus: 'enviado' | 'error',
+  estatus: 'enviado' | 'entregado' | 'sin_confirmar' | 'error',
   motivo?: string
 ): Promise<void> {
-  await db.doc(`mensajes_salientes/${id}`).update({
-    estatus,
-    enviadoEn: FieldValue.serverTimestamp(),
-    error: motivo ?? null,
-  });
+  const update: Record<string, unknown> = { estatus, error: motivo ?? null };
+  if (estatus === 'enviado') update.enviadoEn = FieldValue.serverTimestamp();
+  if (estatus === 'entregado') update.entregadoEn = FieldValue.serverTimestamp();
+  await db.doc(`mensajes_salientes/${id}`).update(update);
 }

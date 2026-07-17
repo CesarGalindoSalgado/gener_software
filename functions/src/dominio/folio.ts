@@ -1,6 +1,7 @@
-// Folio GPC-MMYY-NNN: MM/YY del mes de aprobación, NNN consecutivo anual.
-// El consecutivo vive en counters/folio_{anio} y se incrementa en transacción
-// (ver servicios/aprobar.ts). Aquí solo la lógica pura.
+// Folio GPC-MMYY-NNN: MM/YY del mes de aprobación, NNN consecutivo MENSUAL
+// (se reinicia en 1 al inicio de cada mes). El consecutivo vive en
+// counters/folio_{anio}_{mm} y se incrementa en transacción (ver
+// servicios/aprobar.ts). Aquí solo la lógica pura.
 
 export const ZONA_NEGOCIO = 'America/Mexico_City'; // Morelos
 
@@ -27,8 +28,8 @@ export function formatearFolio(anio: number, mes: number, consecutivo: number): 
   return `GPC-${mm}${yy}-${nnn}`;
 }
 
-export function nombreContador(anio: number): string {
-  return `folio_${anio}`;
+export function nombreContador(anio: number, mes: number): string {
+  return `folio_${anio}_${String(mes).padStart(2, '0')}`;
 }
 
 // Rev. A → B → … → Z → AA (el caso multi-letra es teórico, pero no truena).

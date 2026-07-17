@@ -21,12 +21,13 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
   {
     name: 'crearBorrador',
     description:
-      'Crea una cotización nueva en estatus borrador (Rev. A, sin folio) para un cliente. Si el cliente no existe, se registra.',
+      'Crea la cotización nueva en estatus borrador (Rev. A, sin folio) con sus datos de cabecera. Úsala UNA vez que tengas el cliente y el asunto (la persona "dirigida a" es opcional). Si el cliente no existe, se registra (pide confirmación antes con buscarCliente).',
     input_schema: {
       type: 'object',
       properties: {
         clienteNombre: { type: 'string', description: 'Nombre del cliente' },
-        titulo: { type: 'string', description: 'Título o asunto de la cotización' },
+        titulo: { type: 'string', description: 'Asunto de la cotización' },
+        atencion: { type: 'string', description: 'Atención (At\'n): persona a cuya atención va la cotización (opcional)' },
       },
       required: ['clienteNombre', 'titulo'],
     },
@@ -39,7 +40,6 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
       type: 'object',
       properties: {
         titulo: { type: 'string' },
-        descripcion: { type: 'string' },
         lineas: { type: 'array', items: { type: 'string' } },
         cantidad: {
           type: 'number',
@@ -87,20 +87,49 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
       properties: {
         folio: { type: 'string', description: 'Folio exacto, ej. GPC-0326-005' },
         cliente: { type: 'string', description: 'Nombre del cliente' },
+        orden: { type: 'string', enum: ['reciente', 'antigua'], description: 'Criterio si hay varias del cliente: "reciente" (la última, por defecto) o "antigua" (la más vieja/primera).' },
+      },
+    },
+  },
+  {
+    name: 'copiarBloques',
+    description:
+      'AGREGA todas las partidas de una cotización existente a la cotización que se está editando AHORA (la actual, en este chat). Úsala cuando el usuario quiera "traer/agregar/copiar TAL CUAL" otra cotización a la que ya está armando, SIN crear otra. PREFIERE pasar "cliente" con el nombre (ej. "Eléctrica Ferrero") y el servidor toma la MÁS RECIENTE de ese cliente; usa cotizacionId solo si lo tienes exacto.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        cliente: { type: 'string', description: 'Nombre del cliente cuya última cotización copiar (recomendado)' },
+        cotizacionId: { type: 'string', description: 'Id exacto de la cotización origen (opcional)' },
+      },
+    },
+  },
+  {
+    name: 'previsualizarCotizacion',
+    description:
+      'Muestra en el panel una cotización existente en VISTA PREVIA (solo lectura, SIN guardar ni crear nada). Úsala cuando el usuario pida MOSTRAR/VER una cotización ("muéstrame la de X", "la última de Y"). Después de mostrarla, PREGUNTA al usuario si quiere usar ESTA como base o buscar otra; NO la clones hasta que confirme. PREFIERE pasar "cliente"; usa "folio" si eligió una específica; "orden" antigua/reciente si lo pide.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        cliente: { type: 'string', description: 'Nombre del cliente cuya cotización mostrar' },
+        folio: { type: 'string', description: 'Folio de una cotización específica, ej. "GPC-0726-061"' },
+        cotizacionId: { type: 'string', description: 'Id exacto (opcional)' },
+        orden: { type: 'string', enum: ['reciente', 'antigua'], description: 'Cuál del cliente: "reciente" (por defecto) o "antigua".' },
       },
     },
   },
   {
     name: 'clonarComoBase',
     description:
-      'Crea un borrador nuevo copiando los bloques y precios de una cotización existente, para el cliente destino, sin folio. La forma de pago NO se arrastra: se sugiere la última del cliente destino (fallback 70% anticipo / 30% entrega).',
+      'Crea un borrador NUEVO copiando los bloques y precios de una cotización existente, sin folio. Úsala también cuando el usuario pida MOSTRAR/ABRIR/TRABAJAR una cotización previa ("muéstrame la de X", "ábreme la GPC-...") — así trabaja sobre una COPIA sin tocar el original. PREFIERE pasar "cliente" (toma su más reciente) o "folio" si el usuario eligió una específica. Usa cotizacionId solo si lo tienes exacto. clienteNombre = cliente destino (por defecto, el mismo de la origen).',
     input_schema: {
       type: 'object',
       properties: {
-        cotizacionId: { type: 'string', description: 'Cotización origen' },
-        clienteNombre: { type: 'string', description: 'Nombre del cliente destino del nuevo borrador' },
+        cliente: { type: 'string', description: 'Nombre del cliente cuya cotización usar de base (recomendado)' },
+        folio: { type: 'string', description: 'Folio de la cotización específica a clonar, ej. "GPC-0726-027" (cuando el usuario eligió una entre varias)' },
+        cotizacionId: { type: 'string', description: 'Id exacto de la cotización origen (opcional)' },
+        clienteNombre: { type: 'string', description: 'Cliente destino del nuevo borrador (opcional; por defecto el de la origen)' },
+        orden: { type: 'string', enum: ['reciente', 'antigua'], description: 'Cuál del cliente tomar cuando NO se da folio: "reciente" (la última, por defecto) o "antigua" (la más vieja/primera). Usa "antigua" si el usuario pide la más antigua/vieja/primera.' },
       },
-      required: ['cotizacionId', 'clienteNombre'],
     },
   },
   {
@@ -112,12 +141,13 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
   {
     name: 'agregarDesdePlantilla',
     description:
-      'Inserta una plantilla como bloque en la cotización en edición, con todas sus líneas de alcance. Da el precio si el usuario lo dictó o si la plantilla tiene precioSugerido; si no hay precio, pregúntalo al usuario (no inventes).',
+      'Inserta una plantilla como bloque en la cotización en edición, con todas sus líneas de alcance. Da el precio si el usuario lo dictó o si la plantilla tiene precioSugerido; si no hay precio, pregúntalo al usuario (no inventes). Si la plantilla tiene SUBTIPOS (varios precios con nombre), pasa "subtipo" con el que eligió el usuario; si no lo pasas, el servidor responde con la lista de subtipos para que preguntes cuál.',
     input_schema: {
       type: 'object',
       properties: {
         nombre: { type: 'string', description: 'Nombre de la plantilla (ej. "Mantenimiento preventivo")' },
-        importe: { type: 'number', description: 'Precio del bloque, si el usuario lo dictó' },
+        subtipo: { type: 'string', description: 'Nombre del subtipo elegido, si la plantilla tiene subtipos (ej. "Chico", "Grande")' },
+        importe: { type: 'number', description: 'Precio del bloque, si el usuario lo dictó (normalmente NO hace falta: viene del subtipo o del precioSugerido)' },
       },
       required: ['nombre'],
     },
@@ -134,16 +164,94 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
     },
   },
   {
-    name: 'actualizarDatos',
+    name: 'verBloques',
     description:
-      'Actualiza datos generales de la cotización en edición: título/asunto, forma de pago, tiempo de entrega o persona de atención.',
+      'Devuelve las partidas (bloques) de la cotización en edición con sus renglones/puntos de alcance numerados. Úsala ANTES de editar o quitar un renglón para saber el índice del bloque y del renglón (ambos empiezan en 0).',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'agregarLinea',
+    description:
+      'Agrega un renglón/punto de alcance al FINAL de un bloque de la cotización en edición. El precio no cambia (las líneas son alcance sin precio).',
     input_schema: {
       type: 'object',
       properties: {
-        titulo: { type: 'string' },
+        bloque: { type: 'number', description: 'Índice del bloque (empezando en 0)' },
+        texto: { type: 'string', description: 'Texto del nuevo renglón/punto' },
+      },
+      required: ['bloque', 'texto'],
+    },
+  },
+  {
+    name: 'editarLinea',
+    description:
+      'Reemplaza el texto de un renglón/punto de alcance existente dentro de un bloque. Usa verBloques primero si no conoces el índice del renglón.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        bloque: { type: 'number', description: 'Índice del bloque (empezando en 0)' },
+        linea: { type: 'number', description: 'Índice del renglón dentro del bloque (empezando en 0)' },
+        texto: { type: 'string', description: 'Nuevo texto del renglón' },
+      },
+      required: ['bloque', 'linea', 'texto'],
+    },
+  },
+  {
+    name: 'quitarLinea',
+    description:
+      'Elimina un renglón/punto de alcance de un bloque. Usa verBloques primero si no conoces el índice del renglón.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        bloque: { type: 'number', description: 'Índice del bloque (empezando en 0)' },
+        linea: { type: 'number', description: 'Índice del renglón dentro del bloque (empezando en 0)' },
+      },
+      required: ['bloque', 'linea'],
+    },
+  },
+  {
+    name: 'listarClientes',
+    description:
+      'Devuelve la lista COMPLETA de clientes registrados (nombres). Úsala cuando el usuario pida "mis clientes", "lista de clientes", "qué clientes tengo", etc.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'agregarCliente',
+    description:
+      'Da de alta un cliente NUEVO (solo el nombre) en la lista de clientes. Úsala en cuanto el usuario confirme que quiere agregarlo. NO requiere asunto ni cotización. Es idempotente (si ya existía, no duplica).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Nombre del cliente a registrar' },
+      },
+      required: ['nombre'],
+    },
+  },
+  {
+    name: 'buscarCliente',
+    description:
+      'Busca si un cliente ya existe en la lista de clientes (por nombre, coincidencia parcial). Úsala ANTES de fijar el cliente de una cotización nueva. Si no aparece, pregúntale al usuario si quiere que lo agregues; solo créalo (con actualizarDatos) tras su confirmación.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Nombre o parte del nombre del cliente a buscar' },
+      },
+      required: ['nombre'],
+    },
+  },
+  {
+    name: 'actualizarDatos',
+    description:
+      'Actualiza datos generales de la cotización en edición: cliente, título/asunto, "dirigida a" (persona de atención), forma de pago, tiempo de entrega o notas del documento. Al fijar un clienteNombre que no existía, se registra en la lista de clientes.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        clienteNombre: { type: 'string', description: 'Nombre del cliente (se fija/registra)' },
+        titulo: { type: 'string', description: 'Asunto de la cotización' },
+        atencion: { type: 'string', description: 'Atención (At\'n): persona a cuya atención va la cotización' },
         formaPago: { type: 'string' },
         tiempoEntrega: { type: 'string' },
-        atencion: { type: 'string' },
+        notas: { type: 'string', description: 'Notas libres que aparecen en el documento (bajo el tiempo de entrega). Cadena vacía para borrarlas.' },
       },
     },
   },
@@ -189,12 +297,32 @@ export interface EjecutorHerramientas {
   ejecutar(nombre: string, entrada: unknown, contexto: ContextoEjecucion): Promise<string>;
 }
 
+export interface PreviewCotizacion {
+  cotizacionId: string;
+  folio: string | null;
+  titulo: string;
+  cliente: { nombre: string; atencion?: string | null; telefono?: string | null; correo?: string | null };
+  rev: string;
+  fecha: string; // ISO
+  partidas: unknown[];
+  formaPago?: string | null;
+  tiempoEntrega?: string | null;
+  notas?: string | null;
+}
+
 export interface ContextoEjecucion {
   correo: string; // identidad canónica del usuario (id de usuarios/{correo})
   rol: 'superAdmin' | 'dueno' | 'secretaria' | 'trabajador';
   // Cotización sobre la que trabaja el chat del taller (si aplica)
   cotizacionId?: string;
   versionId?: string;
+  // Vista PREVIA (solo lectura, sin guardar) de una cotización existente: el
+  // ejecutor la fija con previsualizarCotizacion y el callable la devuelve al
+  // front para renderizarla; solo se clona cuando el usuario confirma.
+  preview?: PreviewCotizacion;
+  // Id de la cotización que el usuario está viendo en vista previa (lo pasa el
+  // front en el turno de confirmación). clonarComoBase clona EXACTAMENTE esa.
+  previewCotizacionId?: string;
 }
 
 // Stub de fase 1: responde que la herramienta aún no está conectada.

@@ -1,5 +1,5 @@
 import { FieldValue, Firestore } from 'firebase-admin/firestore';
-import { PasoRutina, PartidaRutina } from '../dominio/tipos';
+import { PasoRutina, PartidaRutina, ContactoCliente } from '../dominio/tipos';
 
 // Catálogo del módulo de Rutinas (Fase 0): clientes, sedes, equipos y rutinas
 // plantilla. Todo se escribe con Admin SDK (la web solo lee). El modelo cuelga
@@ -11,6 +11,43 @@ export async function crearClienteRutinas(db: Firestore, nombre: string): Promis
   if (!n) throw new Error('El cliente necesita un nombre.');
   const ref = await db.collection('clientes').add({ nombre: n, creadoEn: FieldValue.serverTimestamp() });
   return { clienteId: ref.id };
+}
+
+export async function renombrarCliente(db: Firestore, clienteId: string, nombre: string): Promise<void> {
+  const n = nombre.trim();
+  if (!clienteId) throw new Error('Falta el cliente.');
+  if (!n) throw new Error('El cliente necesita un nombre.');
+  await db.doc(`clientes/${clienteId}`).update({ nombre: n });
+}
+
+// Reemplaza la lista completa de contactos del cliente. La web arma el arreglo y
+// lo manda entero; aquí lo limpiamos (trim, quita vacíos) y lo guardamos.
+export async function guardarContactosCliente(
+  db: Firestore,
+  clienteId: string,
+  contactos: ContactoCliente[]
+): Promise<void> {
+  if (!clienteId) throw new Error('Falta el cliente.');
+  const limpios = (contactos ?? [])
+    .map((c) => ({
+      nombre: (c.nombre ?? '').trim(),
+      puesto: (c.puesto ?? '').toString().trim() || null,
+      correo: (c.correo ?? '').toString().trim() || null,
+      telefono: (c.telefono ?? '').toString().trim() || null,
+    }))
+    // Un contacto sirve si al menos trae nombre, correo o teléfono.
+    .filter((c) => c.nombre || c.correo || c.telefono);
+  await db.doc(`clientes/${clienteId}`).update({ contactos: limpios });
+}
+
+export async function eliminarCliente(db: Firestore, clienteId: string): Promise<void> {
+  if (!clienteId) throw new Error('Falta el cliente.');
+  // No lo borramos si tiene sedes colgando (rompería la jerarquía de Rutinas).
+  const sedes = await db.collection('sedes').where('clienteId', '==', clienteId).limit(1).get();
+  if (!sedes.empty) {
+    throw new Error('Este cliente tiene sedes/equipos registrados. Quítalos antes de eliminarlo.');
+  }
+  await db.doc(`clientes/${clienteId}`).delete();
 }
 
 // ---------- Sedes ----------
@@ -48,15 +85,18 @@ export async function actualizarSede(
 // ---------- Equipos (por número de inventario) ----------
 export async function crearEquipo(
   db: Firestore,
-  params: { sedeId: string; noInventario: string; descripcion?: string; rutinaTipoId?: string }
+  params: { sedeId: string; noInventario: string; descripcion?: string }
 ): Promise<{ equipoId: string }> {
   if (!params.sedeId) throw new Error('Falta la sede.');
-  if (!params.noInventario.trim()) throw new Error('El equipo necesita número de inventario.');
+  const serie = params.noInventario.trim();
+  const desc = params.descripcion?.trim() || '';
+  // Un equipo se identifica por su serie O por su descripción. Sin ninguna de las
+  // dos no hay forma de reconocerlo.
+  if (!serie && !desc) throw new Error('El equipo necesita número de serie o una descripción.');
   const ref = await db.collection('equipos').add({
     sedeId: params.sedeId,
-    noInventario: params.noInventario.trim(),
-    descripcion: params.descripcion?.trim() || null,
-    rutinaTipoId: params.rutinaTipoId || null,
+    noInventario: serie, // '' = sin número de serie
+    descripcion: desc || null,
     creadoEn: FieldValue.serverTimestamp(),
   });
   return { equipoId: ref.id };
@@ -65,15 +105,12 @@ export async function crearEquipo(
 export async function actualizarEquipo(
   db: Firestore,
   equipoId: string,
-  cambios: { noInventario?: string; descripcion?: string; rutinaTipoId?: string | null }
+  cambios: { noInventario?: string; descripcion?: string }
 ): Promise<void> {
   const upd: Record<string, unknown> = {};
-  if (cambios.noInventario !== undefined) {
-    if (!cambios.noInventario.trim()) throw new Error('El equipo necesita número de inventario.');
-    upd.noInventario = cambios.noInventario.trim();
-  }
+  // El nº de serie SÍ puede quedar vacío (equipo sin serie); se identifica por descripción.
+  if (cambios.noInventario !== undefined) upd.noInventario = cambios.noInventario.trim();
   if (cambios.descripcion !== undefined) upd.descripcion = cambios.descripcion.trim() || null;
-  if (cambios.rutinaTipoId !== undefined) upd.rutinaTipoId = cambios.rutinaTipoId || null;
   if (Object.keys(upd).length) await db.doc(`equipos/${equipoId}`).update(upd);
 }
 
@@ -117,6 +154,30 @@ export async function actualizarRutina(
   if (cambios.pasos !== undefined) upd.pasos = cambios.pasos;
   if (cambios.activa !== undefined) upd.activa = cambios.activa;
   if (Object.keys(upd).length) await db.doc(`rutinas_plantilla/${rutinaId}`).update(upd);
+}
+
+export async function eliminarRutina(db: Firestore, rutinaId: string): Promise<void> {
+  if (!rutinaId) throw new Error('Falta rutinaId.');
+  await db.doc(`rutinas_plantilla/${rutinaId}`).delete();
+}
+
+// ---------- Catálogo editable de tipos de equipo (partidas) ----------
+
+export async function crearTipoEquipo(db: Firestore, nombre: string): Promise<{ tipoId: string }> {
+  const limpio = nombre.trim();
+  if (!limpio) throw new Error('El tipo de equipo necesita un nombre.');
+  // Evita duplicados (case-insensitive).
+  const existentes = await db.collection('tipos_equipo').get();
+  if (existentes.docs.some((d) => String(d.get('nombre') ?? '').trim().toLowerCase() === limpio.toLowerCase())) {
+    throw new Error('Ya existe un tipo de equipo con ese nombre.');
+  }
+  const ref = await db.collection('tipos_equipo').add({ nombre: limpio, creadoEn: FieldValue.serverTimestamp() });
+  return { tipoId: ref.id };
+}
+
+export async function eliminarTipoEquipo(db: Firestore, tipoId: string): Promise<void> {
+  if (!tipoId) throw new Error('Falta tipoId.');
+  await db.doc(`tipos_equipo/${tipoId}`).delete();
 }
 
 // Importa el seed de rutinas (idempotente por id "RUT-001"...). Cada objeto trae

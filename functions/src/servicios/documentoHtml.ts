@@ -1,6 +1,7 @@
 import { Partida } from '../dominio/tipos';
 import { calcularTotales } from '../dominio/totales';
 import { importeConLetra } from '../dominio/importeConLetra';
+import { HOST_WEB } from '../dominio/entorno';
 
 // Render del documento de cotización como página HTML autocontenida, para el
 // enlace que ve el cliente. Misma plantilla visual que el componente del portal
@@ -15,6 +16,7 @@ interface DatosDocumento {
   partidas: Partida[];
   formaPago?: string;
   tiempoEntrega?: string;
+  notas?: string;
 }
 
 function esc(s: unknown): string {
@@ -38,10 +40,8 @@ const CSS = `
   body{margin:0;background:#e9edf3;padding:20px 12px 48px;font-family:'Segoe UI',Arial,sans-serif}
   .doc{background:#fff;color:#1a1a1a;font-size:12px;line-height:1.45;width:100%;max-width:800px;margin:0 auto;padding:32px 36px;box-shadow:0 2px 12px rgba(0,0,0,.08);border-radius:4px}
   .doc-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #10243f;padding-bottom:14px}
-  .marca{display:flex;gap:10px;align-items:center}
-  .rayo{font-size:28px;color:#d99400}
-  .marca-nombre{font-size:16px;font-weight:700;color:#10243f}
-  .marca-sub{font-size:10px;color:#647183}
+  .marca{display:flex;align-items:center}
+  .marca-logo{height:60px;width:auto;object-fit:contain}
   .doc-meta{text-align:right}
   .doc-titulo{font-size:18px;font-weight:700;letter-spacing:2px;color:#10243f;margin-bottom:6px}
   .meta-tabla{border-collapse:collapse;margin-left:auto;font-size:11px}
@@ -82,12 +82,11 @@ function filaPartida(p: Partida, i: number): string {
     p.lineas && p.lineas.length
       ? `<ul class="p-lineas">${p.lineas.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`
       : '';
-  const desc = p.descripcion ? `<div class="p-desc">${esc(p.descripcion)}</div>` : '';
   const importeLinea = p.importe * (p.cantidad || 1);
   return `<tr>
     <td class="c-num">${i + 1}</td>
     <td class="c-cant">${esc(p.cantidad)}</td>
-    <td class="c-desc"><div class="p-titulo">${esc(p.titulo)}</div>${desc}${lineas}</td>
+    <td class="c-desc"><div class="p-titulo">${esc(p.titulo)}</div>${lineas}</td>
     <td class="c-imp">${money(p.importe)}</td>
     <td class="c-imp">${money(importeLinea)}</td>
   </tr>`;
@@ -115,11 +114,7 @@ export function paginaCotizacionHtml(d: DatosDocumento): string {
 <div class="doc">
   <header class="doc-header">
     <div class="marca">
-      <div class="rayo">⚡</div>
-      <div>
-        <div class="marca-nombre">Gener Power &amp; Control</div>
-        <div class="marca-sub">Soluciones eléctricas e industriales</div>
-      </div>
+      <img src="${HOST_WEB}/logo-gener.png" alt="Gener Power & Control" class="marca-logo" />
     </div>
     <div class="doc-meta">
       <div class="doc-titulo">COTIZACIÓN</div>
@@ -151,7 +146,8 @@ export function paginaCotizacionHtml(d: DatosDocumento): string {
 
   <section class="observaciones">
     <div><span class="etq">Forma de pago:</span> ${esc(d.formaPago ?? '')}</div>
-    <div><span class="etq">Tiempo de entrega:</span> ${esc(d.tiempoEntrega ?? '')}</div>
+    <div><span class="etq">Tiempo de entrega:</span> ${esc(d.tiempoEntrega ?? '')} según disponibilidad de refacciones</div>
+    ${d.notas ? `<div><span class="etq">Notas:</span> ${esc(d.notas)}</div>` : ''}
     <div class="nota">Precios en moneda nacional (M.N.). En caso de encontrar algún desperfecto adicional se notificará antes de proceder.</div>
   </section>
 

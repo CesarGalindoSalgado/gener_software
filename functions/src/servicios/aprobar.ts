@@ -1,9 +1,10 @@
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { validarTransicion } from '../dominio/estados';
+import { validarPorcentajesPago } from '../dominio/formaPago';
 import { formatearFolio, nombreContador, partesFechaNegocio } from '../dominio/folio';
 import { ROLES_ADMIN, Rol } from '../dominio/tipos';
 
-export type CodigoErrorAprobacion = 'sin-permiso' | 'no-existe' | 'ya-tiene-folio';
+export type CodigoErrorAprobacion = 'sin-permiso' | 'no-existe' | 'ya-tiene-folio' | 'porcentajes';
 
 export class ErrorAprobacion extends Error {
   constructor(mensaje: string, public codigo: CodigoErrorAprobacion) {
@@ -57,6 +58,16 @@ export async function aprobarCotizacion(
     // la primera aprobación como la de una revisión (que vuelve a 'borrador').
     validarTransicion(cot.estatus, 'enviada');
 
+    // Antes de aprobar: la FORMA DE PAGO debe traer los porcentajes de anticipo
+    // y contra entrega, y sumar 100% (lectura dentro de la transacción, antes de
+    // escribir). Los porcentajes viven en ese texto, no en campos aparte.
+    const verSnap = await tx.get(db.doc(`cotizaciones/${params.cotizacionId}/versiones/${cot.versionActualId}`));
+    const ver = verSnap.data() ?? {};
+    const chequeo = validarPorcentajesPago(ver.formaPago as string | null | undefined);
+    if (!chequeo.ok) {
+      throw new ErrorAprobacion(chequeo.mensaje!, 'porcentajes');
+    }
+
     // Revisión (Rev. B, C…): la cotización YA tiene folio. Se re-aprueba sin
     // consumir folio nuevo — el folio vive con la cotización.
     if (cot.folio) {
@@ -64,10 +75,12 @@ export async function aprobarCotizacion(
       return { folio: cot.folio as string, consecutivo: -1 };
     }
 
-    // Primera aprobación: asignar folio del contador anual (transacción).
+    // Primera aprobación: asignar folio del contador MENSUAL (transacción).
     // MM/YY del mes de aprobación en la zona del negocio (Morelos), no en UTC.
+    // El consecutivo se reinicia solo: cada mes usa su propio contador y el
+    // primero del mes (contador inexistente) arranca en 1.
     const { anio, mes } = partesFechaNegocio(ahora);
-    const contadorRef = db.doc(`counters/${nombreContador(anio)}`);
+    const contadorRef = db.doc(`counters/${nombreContador(anio, mes)}`);
     const contadorSnap = await tx.get(contadorRef);
     const ultimo = contadorSnap.exists
       ? (contadorSnap.data()!.ultimo as number)

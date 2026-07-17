@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref } from 'vue';
-import { Building2, MapPin, Plus, LoaderCircle, ChevronRight } from 'lucide-vue-next';
+import { Building2, MapPin, Plus, LoaderCircle, ChevronRight, Pencil, Check, X } from 'lucide-vue-next';
 import {
   crearCliente,
   crearSede,
   crearEquipo,
+  actualizarEquipo,
   suscribirClientes,
   suscribirSedes,
   suscribirEquipos,
@@ -76,7 +77,12 @@ async function agregarSede() {
 const nuevoEquipo = reactive({ noInventario: '', descripcion: '' });
 const guardandoEquipo = ref(false);
 async function agregarEquipo() {
-  if (!sedeSel.value || !nuevoEquipo.noInventario.trim() || guardandoEquipo.value) return;
+  // Un equipo necesita nº de serie O descripción (los sin serie se identifican por descripción).
+  if (!sedeSel.value || guardandoEquipo.value) return;
+  if (!nuevoEquipo.noInventario.trim() && !nuevoEquipo.descripcion.trim()) {
+    error.value = 'Pon el número de serie o una descripción del equipo.';
+    return;
+  }
   guardandoEquipo.value = true;
   error.value = '';
   try {
@@ -90,6 +96,38 @@ async function agregarEquipo() {
     error.value = (e as { message?: string })?.message ?? 'No se pudo crear el equipo.';
   } finally {
     guardandoEquipo.value = false;
+  }
+}
+
+// --- Editar equipo (p. ej. agregarle un número de serie después) ---
+const editEquipoId = ref<string | null>(null);
+const editEquipo = reactive({ noInventario: '', descripcion: '' });
+const guardandoEdicion = ref(false);
+function abrirEditEquipo(e: EquipoDoc) {
+  editEquipoId.value = e.id;
+  editEquipo.noInventario = e.noInventario ?? '';
+  editEquipo.descripcion = e.descripcion ?? '';
+  error.value = '';
+}
+async function guardarEditEquipo() {
+  if (!editEquipoId.value || guardandoEdicion.value) return;
+  if (!editEquipo.noInventario.trim() && !editEquipo.descripcion.trim()) {
+    error.value = 'El equipo necesita número de serie o descripción.';
+    return;
+  }
+  guardandoEdicion.value = true;
+  error.value = '';
+  try {
+    await actualizarEquipo({
+      equipoId: editEquipoId.value,
+      noInventario: editEquipo.noInventario.trim(),
+      descripcion: editEquipo.descripcion.trim(),
+    });
+    editEquipoId.value = null;
+  } catch (e: unknown) {
+    error.value = (e as { message?: string })?.message ?? 'No se pudo actualizar el equipo.';
+  } finally {
+    guardandoEdicion.value = false;
   }
 }
 
@@ -173,14 +211,35 @@ function seleccionarCliente(id: string) {
         <template v-else>
           <div class="flex-1 overflow-auto max-h-80">
             <div v-for="e in equiposDeSede" :key="e.id" class="px-4 py-2.5 text-sm border-b border-line last:border-0">
-              <p class="font-mono text-xs text-accent">{{ e.noInventario }}</p>
-              <p v-if="e.descripcion" class="text-ink-2">{{ e.descripcion }}</p>
+              <!-- Edición inline: agregar/corregir el nº de serie o la descripción -->
+              <template v-if="editEquipoId === e.id">
+                <div class="space-y-2">
+                  <input v-model="editEquipo.noInventario" placeholder="Número de serie (déjalo vacío si no tiene)" class="w-full h-8 px-2 rounded-md border border-line text-sm" />
+                  <input v-model="editEquipo.descripcion" placeholder="Descripción / característica" class="w-full h-8 px-2 rounded-md border border-line text-sm" />
+                  <div class="flex justify-end gap-2">
+                    <button @click="editEquipoId = null" class="h-8 px-2 rounded-md border border-line text-xs text-muted-ink"><X :size="14" /></button>
+                    <button @click="guardarEditEquipo" :disabled="guardandoEdicion" class="h-8 px-3 rounded-md bg-accent text-white text-xs flex items-center gap-1 disabled:opacity-50">
+                      <LoaderCircle v-if="guardandoEdicion" :size="13" class="animate-spin" /><Check v-else :size="14" /> Guardar
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p v-if="e.noInventario" class="font-mono text-xs text-accent">{{ e.noInventario }}</p>
+                    <p v-else class="text-[11px] font-medium text-[#8a6d1a] bg-[#fef3d6] inline-block px-1.5 rounded">Sin N/S</p>
+                    <p v-if="e.descripcion" class="text-ink-2">{{ e.descripcion }}</p>
+                  </div>
+                  <button @click="abrirEditEquipo(e)" class="text-muted-ink hover:text-accent shrink-0" title="Editar equipo"><Pencil :size="14" /></button>
+                </div>
+              </template>
             </div>
             <p v-if="equiposDeSede.length === 0" class="px-4 py-6 text-center text-xs text-muted-ink">Sin equipos.</p>
           </div>
           <form @submit.prevent="agregarEquipo" class="p-3 border-t border-line space-y-2">
-            <input v-model="nuevoEquipo.noInventario" placeholder="Número de inventario" class="w-full h-9 px-2 rounded-md border border-line text-sm" />
-            <input v-model="nuevoEquipo.descripcion" placeholder="Descripción (opcional)" class="w-full h-9 px-2 rounded-md border border-line text-sm" />
+            <input v-model="nuevoEquipo.noInventario" placeholder="Número de serie (vacío = sin serie)" class="w-full h-9 px-2 rounded-md border border-line text-sm" />
+            <input v-model="nuevoEquipo.descripcion" placeholder="Descripción (obligatoria si no hay serie)" class="w-full h-9 px-2 rounded-md border border-line text-sm" />
             <button type="submit" :disabled="guardandoEquipo" class="w-full h-9 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
               <LoaderCircle v-if="guardandoEquipo" :size="15" class="animate-spin" /><Plus v-else :size="15" /> Agregar equipo
             </button>

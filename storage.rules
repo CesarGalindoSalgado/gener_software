@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Reglas de Firebase Storage para Portteo.
+// La evidencia fotográfica de Rutinas la SUBE el backend (Cloud Function con
+// Admin SDK, que se salta estas reglas). Desde el cliente:
+//   - Lectura: solo usuarios autenticados y activos (el portal muestra la galería).
+//   - Escritura: prohibida (nadie sube directo; todo pasa por la función).
+service firebase.storage {
+  match /b/{bucket}/o {
+    function esUsuarioActivo() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/usuarios/$(request.auth.token.email))
+        && firestore.get(/databases/(default)/documents/usuarios/$(request.auth.token.email)).data.activo == true;
+    }
+
+    match /{allPaths=**} {
+      allow read: if esUsuarioActivo();
+      allow write: if false;
+    }
+  }
+}

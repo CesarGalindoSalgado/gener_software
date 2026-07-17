@@ -43,6 +43,7 @@ async function entrar() {
 <template>
   <div class="min-h-screen flex items-center justify-center p-6">
     <div class="w-full max-w-sm bg-card border border-line rounded-lg shadow-sm p-8">
+      <img src="/logo-gener.png" alt="Gener Power &amp; Control" class="h-14 w-auto object-contain mb-4" />
       <div class="flex items-center gap-2 mb-1">
         <Zap :size="22" class="text-brand" fill="currentColor" stroke="#10243f" :stroke-width="1" />
         <span class="font-serif text-2xl text-ink">Porttea<span class="text-brand-text italic">-Gener</span></span>

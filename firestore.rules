@@ -75,6 +75,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Cola de salientes de WhatsApp: el portal lee el estatus de entrega
+    // (enviado/entregado/sin_confirmar) para avisar si un envío no llegó.
+    match /mensajes_salientes/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
+
     // ---- Módulo de Rutinas: operadores (superAdmin/dueño/secretaria) leen ----
     // Todo se escribe por Cloud Functions (Admin SDK). El técnico opera por
     // WhatsApp, no lee desde la web.
@@ -90,6 +97,10 @@ service cloud.firestore {
       allow read: if esOperador();
       allow write: if false;
     }
+    match /tipos_equipo/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
     match /rutinas_ejecucion/{doc=**} {
       allow read: if esOperador();
       allow write: if false;
@@ -98,9 +109,20 @@ service cloud.firestore {
       allow read: if esOperador();
       allow write: if false;
     }
+    // Evidencia fotográfica que llega por WhatsApp (bandeja). La sube el backend.
+    match /fotos_entrantes/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
 
     // Contadores de folio: nunca accesibles desde el cliente
     match /counters/{doc=**} {
+      allow read, write: if false;
+    }
+
+    // Configuración sensible (credenciales de correo, etc.): NUNCA desde el
+    // cliente. Solo el Admin SDK (Cloud Functions) la lee/escribe.
+    match /config/{doc=**} {
       allow read, write: if false;
     }
   }

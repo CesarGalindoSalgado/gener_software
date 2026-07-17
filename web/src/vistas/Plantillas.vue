@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, reactive, ref } from 'vue';
-import { LayoutTemplate, Plus, LoaderCircle, Pencil, X, Check } from 'lucide-vue-next';
+import { LayoutTemplate, Plus, LoaderCircle, Pencil, X, Check, Trash2 } from 'lucide-vue-next';
 import { formatearMoneda } from '../dominio/totales';
 import {
   actualizarPlantilla,
@@ -19,16 +19,54 @@ onUnmounted(off);
 
 const error = ref('');
 
-// --- Edición inline (nombre, precio, líneas, descripción) ---
+// Forma común de edición/alta. `subtipos` es una lista {nombre, precio}; cuando
+// `tieneSubtipos` está activo, se usan esos en vez del precio único.
+interface FormaPlantilla {
+  nombre: string;
+  precio: string | number;
+  tieneSubtipos: boolean;
+  subtipos: { nombre: string; precio: string | number }[];
+  lineasTexto: string;
+}
+function nuevoSubtipo() {
+  return { nombre: '', precio: '' as string | number };
+}
+function agregarSubtipo(f: FormaPlantilla) {
+  f.subtipos.push(nuevoSubtipo());
+}
+function quitarSubtipo(f: FormaPlantilla, i: number) {
+  f.subtipos.splice(i, 1);
+}
+// Al activar el checkbox, arranca con un subtipo vacío para capturar.
+function alternarSubtipos(f: FormaPlantilla) {
+  f.tieneSubtipos = !f.tieneSubtipos;
+  if (f.tieneSubtipos && f.subtipos.length === 0) f.subtipos.push(nuevoSubtipo());
+}
+// Payload de precio/subtipos según el modo.
+function payloadPrecio(f: FormaPlantilla) {
+  if (f.tieneSubtipos) {
+    return {
+      tieneSubtipos: true,
+      subtipos: f.subtipos
+        .map((s) => ({ nombre: s.nombre.trim(), precio: Number(s.precio) || 0 }))
+        .filter((s) => s.nombre),
+      precioSugerido: null,
+    };
+  }
+  return { tieneSubtipos: false, subtipos: [], precioSugerido: f.precio === '' ? null : Number(f.precio) };
+}
+
+// --- Edición inline (nombre, precio/subtipos, líneas) ---
 const editandoId = ref<string | null>(null);
 const guardando = ref(false);
-const draft = reactive({ nombre: '', descripcion: '', precio: '' as string | number, lineasTexto: '' });
+const draft = reactive<FormaPlantilla>({ nombre: '', precio: '', tieneSubtipos: false, subtipos: [], lineasTexto: '' });
 
 function abrirEdicion(p: PlantillaDoc) {
   editandoId.value = p.plantillaId;
   draft.nombre = p.nombre;
-  draft.descripcion = p.descripcion ?? '';
   draft.precio = p.precioSugerido ?? '';
+  draft.tieneSubtipos = !!p.tieneSubtipos;
+  draft.subtipos = (p.subtipos ?? []).map((s) => ({ nombre: s.nombre, precio: s.precio }));
   draft.lineasTexto = (p.lineas ?? []).join('\n');
   error.value = '';
 }
@@ -42,8 +80,7 @@ async function guardar(id: string) {
     await actualizarPlantilla({
       plantillaId: id,
       nombre: draft.nombre,
-      descripcion: draft.descripcion,
-      precioSugerido: draft.precio === '' ? null : Number(draft.precio),
+      ...payloadPrecio(draft),
       lineas: draft.lineasTexto.split('\n').map((l) => l.trim()).filter(Boolean),
     });
     editandoId.value = null;
@@ -65,12 +102,13 @@ async function alternarActiva(p: PlantillaDoc) {
 // --- Alta (en modal) ---
 const creando = ref(false);
 const modalAbierto = ref(false);
-const nuevo = reactive({ nombre: '', descripcion: '', precio: '' as string | number, lineasTexto: '' });
+const nuevo = reactive<FormaPlantilla>({ nombre: '', precio: '', tieneSubtipos: false, subtipos: [], lineasTexto: '' });
 
 function abrirModal() {
   nuevo.nombre = '';
-  nuevo.descripcion = '';
   nuevo.precio = '';
+  nuevo.tieneSubtipos = false;
+  nuevo.subtipos = [];
   nuevo.lineasTexto = '';
   error.value = '';
   modalAbierto.value = true;
@@ -84,13 +122,16 @@ async function crear() {
     error.value = 'El nombre es obligatorio.';
     return;
   }
+  if (nuevo.tieneSubtipos && !nuevo.subtipos.some((s) => s.nombre.trim())) {
+    error.value = 'Agrega al menos un subtipo con su nombre y precio.';
+    return;
+  }
   creando.value = true;
   error.value = '';
   try {
     await crearPlantilla({
       nombre: nuevo.nombre.trim(),
-      descripcion: nuevo.descripcion.trim() || undefined,
-      precioSugerido: nuevo.precio === '' ? null : Number(nuevo.precio),
+      ...payloadPrecio(nuevo),
       lineas: nuevo.lineasTexto.split('\n').map((l) => l.trim()).filter(Boolean),
     });
     modalAbierto.value = false;
@@ -141,13 +182,22 @@ async function crear() {
                   class="text-xs px-2 py-0.5 rounded-md bg-[#f9e6ea] text-danger"
                 >inactiva</span>
               </div>
-              <p v-if="p.descripcion" class="text-sm text-muted-ink mt-1">{{ p.descripcion }}</p>
             </div>
             <div class="text-right shrink-0">
-              <div class="font-serif text-2xl text-brand-text">
-                {{ p.precioSugerido != null ? formatearMoneda(p.precioSugerido) : 'sin precio' }}
-              </div>
-              <p class="eyebrow">precio sugerido</p>
+              <template v-if="p.tieneSubtipos && p.subtipos?.length">
+                <div class="text-sm text-ink-2 space-y-0.5">
+                  <div v-for="(s, i) in p.subtipos" :key="i" class="whitespace-nowrap">
+                    <span class="text-muted-ink">{{ s.nombre }}:</span> <span class="font-medium text-brand-text">{{ formatearMoneda(s.precio) }}</span>
+                  </div>
+                </div>
+                <p class="eyebrow mt-0.5">{{ p.subtipos.length }} subtipo{{ p.subtipos.length === 1 ? '' : 's' }}</p>
+              </template>
+              <template v-else>
+                <div class="font-serif text-2xl text-brand-text">
+                  {{ p.precioSugerido != null ? formatearMoneda(p.precioSugerido) : 'sin precio' }}
+                </div>
+                <p class="eyebrow">precio sugerido</p>
+              </template>
             </div>
           </div>
 
@@ -175,12 +225,25 @@ async function crear() {
             <input v-model="draft.nombre" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
           </div>
           <div>
-            <label class="eyebrow block mb-1">Descripción</label>
-            <input v-model="draft.descripcion" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
-          </div>
-          <div>
-            <label class="eyebrow block mb-1">Precio sugerido (MXN, vacío = sin precio)</label>
-            <input v-model="draft.precio" type="number" min="0" step="0.01" class="w-48 h-10 px-3 rounded-md border border-line bg-white text-sm" />
+            <label class="flex items-center gap-2 text-sm cursor-pointer mb-2">
+              <input type="checkbox" :checked="draft.tieneSubtipos" @change="alternarSubtipos(draft)" class="accent-[var(--color-accent)]" />
+              Varios precios (subtipos)
+            </label>
+            <template v-if="!draft.tieneSubtipos">
+              <label class="eyebrow block mb-1">Precio sugerido (MXN, vacío = sin precio)</label>
+              <input v-model="draft.precio" type="number" min="0" step="0.01" class="w-48 h-10 px-3 rounded-md border border-line bg-white text-sm" />
+            </template>
+            <template v-else>
+              <label class="eyebrow block mb-1">Subtipos (nombre y precio)</label>
+              <div class="space-y-2">
+                <div v-for="(s, i) in draft.subtipos" :key="i" class="flex gap-2 items-center">
+                  <input v-model="s.nombre" placeholder="Nombre (ej. Chico)" class="flex-1 h-9 px-3 rounded-md border border-line bg-white text-sm" />
+                  <input v-model="s.precio" type="number" min="0" step="0.01" placeholder="Precio" class="w-32 h-9 px-3 rounded-md border border-line bg-white text-sm" />
+                  <button type="button" @click="quitarSubtipo(draft, i)" class="text-muted-ink hover:text-danger"><Trash2 :size="16" /></button>
+                </div>
+              </div>
+              <button type="button" @click="agregarSubtipo(draft)" class="flex items-center gap-1 text-xs text-accent hover:text-accent-bright font-medium mt-2"><Plus :size="14" /> Agregar subtipo</button>
+            </template>
           </div>
           <div>
             <label class="eyebrow block mb-1">Líneas de alcance (una por renglón)</label>
@@ -226,12 +289,26 @@ async function crear() {
             <input v-model="nuevo.nombre" placeholder="Ej. Mantenimiento preventivo" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
           </div>
           <div>
-            <label class="eyebrow block mb-1">Descripción</label>
-            <input v-model="nuevo.descripcion" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
-          </div>
-          <div>
-            <label class="eyebrow block mb-1">Precio sugerido (MXN, vacío = sin precio)</label>
-            <input v-model="nuevo.precio" type="number" min="0" step="0.01" class="w-48 h-10 px-3 rounded-md border border-line bg-white text-sm" />
+            <label class="flex items-center gap-2 text-sm cursor-pointer mb-2">
+              <input type="checkbox" :checked="nuevo.tieneSubtipos" @change="alternarSubtipos(nuevo)" class="accent-[var(--color-accent)]" />
+              Varios precios (subtipos)
+            </label>
+            <template v-if="!nuevo.tieneSubtipos">
+              <label class="eyebrow block mb-1">Precio sugerido (MXN, vacío = sin precio)</label>
+              <input v-model="nuevo.precio" type="number" min="0" step="0.01" class="w-48 h-10 px-3 rounded-md border border-line bg-white text-sm" />
+            </template>
+            <template v-else>
+              <label class="eyebrow block mb-1">Subtipos (nombre y precio)</label>
+              <p class="text-xs text-muted-ink mb-2">Al usar la plantilla, Portteo preguntará cuál subtipo; el concepto será «Plantilla — Subtipo» con ese precio.</p>
+              <div class="space-y-2">
+                <div v-for="(s, i) in nuevo.subtipos" :key="i" class="flex gap-2 items-center">
+                  <input v-model="s.nombre" placeholder="Nombre (ej. Chico)" class="flex-1 h-9 px-3 rounded-md border border-line bg-white text-sm" />
+                  <input v-model="s.precio" type="number" min="0" step="0.01" placeholder="Precio" class="w-32 h-9 px-3 rounded-md border border-line bg-white text-sm" />
+                  <button type="button" @click="quitarSubtipo(nuevo, i)" class="text-muted-ink hover:text-danger"><Trash2 :size="16" /></button>
+                </div>
+              </div>
+              <button type="button" @click="agregarSubtipo(nuevo)" class="flex items-center gap-1 text-xs text-accent hover:text-accent-bright font-medium mt-2"><Plus :size="14" /> Agregar subtipo</button>
+            </template>
           </div>
           <div>
             <label class="eyebrow block mb-1">Líneas de alcance (una por renglón)</label>

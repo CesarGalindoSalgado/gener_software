@@ -5,7 +5,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node --env-file-if-exists=.env index.js"
+    "start": "node --env-file-if-exists=.env index.js",
+    "start:pruebas": "node --env-file=.env.pruebas index.js"
   },
   "engines": {
     "node": ">=20"

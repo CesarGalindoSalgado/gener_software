@@ -5,7 +5,6 @@
 export interface PlantillaSeed {
   nombre: string;
   activa: boolean;
-  descripcion: string;
   precioSugerido: number | null;
   lineas: string[];
 }
@@ -14,7 +13,6 @@ export const PLANTILLAS_SEED: PlantillaSeed[] = [
   {
     nombre: 'Suministro de radiador nuevo',
     activa: true,
-    descripcion: 'Incluye maquinaria, herramienta, mano de obra y lo necesario para las siguientes actividades.',
     precioSugerido: null,
     lineas: [
       'Traslado a lugar de servicio con herramientas y equipos',
@@ -32,7 +30,6 @@ export const PLANTILLAS_SEED: PlantillaSeed[] = [
   {
     nombre: 'Mantenimiento preventivo',
     activa: true,
-    descripcion: 'Incluye maquinaria, herramienta, mano de obra y lo necesario para las siguientes actividades.',
     precioSugerido: null,
     lineas: [
       'Traslado al lugar del servicio',
@@ -70,7 +67,6 @@ export const PLANTILLAS_SEED: PlantillaSeed[] = [
   {
     nombre: 'Reparación de radiador',
     activa: true,
-    descripcion: 'Incluye maquinaria, herramienta, mano de obra y lo necesario para las siguientes actividades.',
     precioSugerido: null,
     lineas: [
       'Traslado a lugar de servicio con herramientas y equipos',

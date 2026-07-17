@@ -3,6 +3,9 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "functions": [
     {
       "source": "functions",
@@ -14,7 +17,19 @@
   "hosting": {
     "public": "web/dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "headers": [
+      {
+        "//": "Todo (incluye el HTML del SPA en / y rutas) sin caché, para que cada deploy cargue la versión nueva sin refresco forzado.",
+        "source": "**",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+      },
+      {
+        "//": "Los assets llevan hash en el nombre: se cachean fuerte (esta regla va después para ganarle a la anterior).",
+        "source": "/assets/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      }
+    ]
   },
   "emulators": {
     "firestore": { "port": 8080 },

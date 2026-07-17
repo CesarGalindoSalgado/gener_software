@@ -3,10 +3,16 @@ import { FieldValue, Firestore } from 'firebase-admin/firestore';
 // CRUD de plantillas (Admin SDK). Las escrituras pasan por aquí (los clientes
 // solo leen). El dueño y el superAdmin gestionan plantillas.
 
+export interface SubtipoPlantilla {
+  nombre: string;
+  precio: number;
+}
+
 export interface DatosPlantilla {
   nombre: string;
-  descripcion?: string;
   precioSugerido?: number | null;
+  tieneSubtipos?: boolean;
+  subtipos?: SubtipoPlantilla[];
   lineas: string[];
   activa: boolean;
 }
@@ -14,7 +20,13 @@ export interface DatosPlantilla {
 function limpiar(datos: Partial<DatosPlantilla>) {
   const out: Record<string, unknown> = {};
   if (datos.nombre !== undefined) out.nombre = datos.nombre.trim();
-  if (datos.descripcion !== undefined) out.descripcion = datos.descripcion?.trim() || null;
+  if (datos.tieneSubtipos !== undefined) out.tieneSubtipos = !!datos.tieneSubtipos;
+  if (datos.subtipos !== undefined) {
+    // Solo subtipos con nombre; el precio va como número (0 si viene vacío).
+    out.subtipos = (datos.subtipos ?? [])
+      .map((s) => ({ nombre: (s.nombre ?? '').trim(), precio: Number(s.precio) || 0 }))
+      .filter((s) => s.nombre);
+  }
   if (datos.precioSugerido !== undefined) {
     out.precioSugerido = datos.precioSugerido === null ? null : Number(datos.precioSugerido);
   }

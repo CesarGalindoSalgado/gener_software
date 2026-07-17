@@ -2,30 +2,37 @@ import { collection, onSnapshot, orderBy, query, type Timestamp, type Unsubscrib
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../firebase';
 
+export interface SubtipoPlantilla {
+  nombre: string;
+  precio: number;
+}
+
 export interface PlantillaDoc {
   plantillaId: string;
   nombre: string;
-  descripcion?: string | null;
   precioSugerido?: number | null;
+  tieneSubtipos?: boolean;
+  subtipos?: SubtipoPlantilla[];
   lineas: string[];
   activa: boolean;
   creadaEn?: Timestamp | null;
 }
 
 const callableCrear = httpsCallable<
-  { nombre: string; descripcion?: string; precioSugerido?: number | null; lineas: string[]; activa?: boolean },
+  { nombre: string; precioSugerido?: number | null; tieneSubtipos?: boolean; subtipos?: SubtipoPlantilla[]; lineas: string[]; activa?: boolean },
   { plantillaId: string }
 >(functions, 'crearPlantillaCallable');
 
 const callableActualizar = httpsCallable<
-  { plantillaId: string; nombre?: string; descripcion?: string; precioSugerido?: number | null; lineas?: string[]; activa?: boolean },
+  { plantillaId: string; nombre?: string; precioSugerido?: number | null; tieneSubtipos?: boolean; subtipos?: SubtipoPlantilla[]; lineas?: string[]; activa?: boolean },
   { ok: boolean }
 >(functions, 'actualizarPlantillaCallable');
 
 export async function crearPlantilla(datos: {
   nombre: string;
-  descripcion?: string;
   precioSugerido?: number | null;
+  tieneSubtipos?: boolean;
+  subtipos?: SubtipoPlantilla[];
   lineas: string[];
 }) {
   return (await callableCrear(datos)).data;
@@ -34,8 +41,9 @@ export async function crearPlantilla(datos: {
 export async function actualizarPlantilla(datos: {
   plantillaId: string;
   nombre?: string;
-  descripcion?: string;
   precioSugerido?: number | null;
+  tieneSubtipos?: boolean;
+  subtipos?: SubtipoPlantilla[];
   lineas?: string[];
   activa?: boolean;
 }) {

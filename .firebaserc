@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "gener-3ecc1"
+    "default": "gener-3ecc1",
+    "produccion": "gener-3ecc1",
+    "pruebas": "gener-test-d3b98"
   }
 }

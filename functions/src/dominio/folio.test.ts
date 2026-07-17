@@ -36,8 +36,9 @@ describe('partesFechaNegocio (zona de Morelos)', () => {
 });
 
 describe('nombreContador', () => {
-  it('un contador por año', () => {
-    expect(nombreContador(2026)).toBe('folio_2026');
+  it('un contador por mes (mm con cero a la izquierda)', () => {
+    expect(nombreContador(2026, 7)).toBe('folio_2026_07');
+    expect(nombreContador(2026, 12)).toBe('folio_2026_12');
   });
 });
 

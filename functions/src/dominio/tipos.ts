@@ -23,7 +23,16 @@ export interface Usuario {
   correo: string; // identidad web (login con Google/Gmail); es el id del doc
   rol: Rol;
   activo: boolean;
-  telefono?: string; // identidad del bot (WhatsApp/Telegram), solo dígitos con lada
+  telefono?: string; // identidad del bot de WhatsApp, solo dígitos con lada
+  telegramChatId?: string; // identidad del bot de Telegram (respaldo); chat id
+}
+
+// Un contacto del cliente (encargado, compras, etc.). Un cliente puede tener varios.
+export interface ContactoCliente {
+  nombre: string;
+  puesto?: string | null; // rol: "Encargado", "Compras", "Almacén"…
+  correo?: string | null;
+  telefono?: string | null;
 }
 
 export interface Cliente {
@@ -31,6 +40,7 @@ export interface Cliente {
   atencion?: string;
   telefono?: string;
   correo?: string;
+  contactos?: ContactoCliente[];
   ultimaFormaPago?: string;
   driveFolderId?: string;
 }
@@ -38,7 +48,6 @@ export interface Cliente {
 // El precio vive en la partida (bloque); las líneas son alcance sin precio.
 export interface Partida {
   titulo: string;
-  descripcion?: string;
   lineas: string[];
   cantidad: number;
   importe: number;
@@ -53,6 +62,7 @@ export interface Version {
   total: number;
   formaPago: string;
   tiempoEntrega: string;
+  notas?: string; // notas libres del documento (vacías en una cotización nueva)
   fecha: Date;
   pdfUrl?: string;
 }
@@ -68,12 +78,21 @@ export interface Cotizacion {
   fechaEntregaCliente?: Date; // cuándo se mandó realmente al cliente
 }
 
+// Un subtipo de plantilla: mismo alcance (líneas), distinto nombre y precio.
+export interface SubtipoPlantilla {
+  nombre: string;
+  precio: number;
+}
+
 export interface Plantilla {
   nombre: string;
   activa: boolean;
-  descripcion?: string;
   lineas: string[];
-  precioSugerido?: number;
+  precioSugerido?: number; // cuando NO tiene subtipos (precio único)
+  // Con subtipos, el precio deja de ser único: cada subtipo trae su nombre y su
+  // precio. Al usar la plantilla se elige uno y el concepto queda "nombre — subtipo".
+  tieneSubtipos?: boolean;
+  subtipos?: SubtipoPlantilla[];
 }
 
 export interface PrecioHistorico {
@@ -115,7 +134,8 @@ export interface Equipo {
   sedeId: string;
   noInventario: string; // Servicios de Salud rastrea por inventario
   descripcion?: string;
-  rutinaTipoId?: string; // rutina_plantilla sugerida para este equipo
+  // La rutina NO pertenece al equipo: un mismo equipo puede recibir distintas
+  // rutinas. Se elige al arrancar cada ejecución (ver servicios/ejecucion.ts).
 }
 
 export type EvidenciaTipo = 'foto_comentario' | 'antes_despues' | 'medicion';
@@ -138,7 +158,10 @@ export interface PasoRutina {
   evidencia: EvidenciaPaso;
 }
 
-export type PartidaRutina = 'Equipo médico' | 'Equipo electromecánico';
+// Antes era una lista fija; ahora es texto libre alimentado por el catálogo
+// editable `tipos_equipo`. Estos dos son los tipos base del negocio de G-ener.
+export type PartidaRutina = string;
+export const TIPOS_EQUIPO_BASE = ['Equipo médico', 'Equipo electromecánico'] as const;
 
 export interface RutinaPlantilla {
   partida: PartidaRutina;
@@ -171,6 +194,7 @@ export interface PasoEjecucion {
   lectura?: number;
   unidad?: string;
   cumple?: boolean; // lo decide el técnico salvo rango definido
+  esperaComentario?: boolean; // evidencia lista; se pidió el comentario del paso
   fecha?: Date; // sello de tiempo del paso
 }
 
@@ -187,11 +211,14 @@ export interface RutinaEjecucion {
   tecnicoTelefono: string;
   tecnicoNombre: string;
   estatus: EstatusEjecucion;
+  // 'recibe': terminó pasos, se pide el nombre de quien recibe; 'firma': falta la hoja firmada
+  etapa?: 'pasos' | 'recibe' | 'firma';
   inicio: Date;
   fin?: Date;
   pasoActual?: number; // para retomar tras pérdida de señal
   pasos: PasoEjecucion[];
   comentarios: ComentarioEjecucion[];
+  recibeNombre?: string; // nombre de quien recibe el servicio (capturado al cierre)
   oportunidad?: string;
   cancelacionRazon?: string;
   reportePdfUrl?: string; // Drive

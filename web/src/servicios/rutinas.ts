@@ -25,7 +25,14 @@ export interface PasoRutina {
   evidencia: EvidenciaPaso;
 }
 
-export type PartidaRutina = 'Equipo médico' | 'Equipo electromecánico';
+// Texto libre alimentado por el catálogo editable `tipos_equipo`.
+export type PartidaRutina = string;
+export const TIPOS_EQUIPO_BASE = ['Equipo médico', 'Equipo electromecánico'];
+
+export interface TipoEquipoDoc {
+  id: string;
+  nombre: string;
+}
 
 export interface RutinaDoc {
   id: string;
@@ -37,9 +44,18 @@ export interface RutinaDoc {
   pasos: PasoRutina[];
 }
 
+export interface ContactoCliente {
+  nombre: string;
+  puesto?: string | null; // "Encargado", "Compras", "Almacén"…
+  correo?: string | null;
+  telefono?: string | null;
+}
+
 export interface ClienteDoc {
   id: string;
   nombre: string;
+  telefonos?: string[];
+  contactos?: ContactoCliente[];
 }
 
 export interface SedeDoc {
@@ -55,7 +71,6 @@ export interface EquipoDoc {
   sedeId: string;
   noInventario: string;
   descripcion?: string | null;
-  rutinaTipoId?: string | null;
 }
 
 // ---------- Suscripciones en vivo ----------
@@ -63,6 +78,14 @@ export function suscribirRutinas(cb: (items: RutinaDoc[]) => void): Unsubscribe 
   return onSnapshot(collection(db, 'rutinas_plantilla'), (snap) => {
     const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RutinaDoc, 'id'>) }));
     items.sort((a, b) => a.id.localeCompare(b.id));
+    cb(items);
+  });
+}
+
+export function suscribirTiposEquipo(cb: (items: TipoEquipoDoc[]) => void): Unsubscribe {
+  return onSnapshot(collection(db, 'tipos_equipo'), (snap) => {
+    const items = snap.docs.map((d) => ({ id: d.id, nombre: String(d.data().nombre ?? '') }));
+    items.sort((a, b) => a.nombre.localeCompare(b.nombre));
     cb(items);
   });
 }
@@ -103,21 +126,34 @@ const cbCrearEquipo = httpsCallable<Record<string, unknown>, { equipoId: string 
 const cbActualizarEquipo = httpsCallable<Record<string, unknown>, { ok: boolean }>(functions, 'actualizarEquipoCallable');
 const cbCrearRutina = httpsCallable<Record<string, unknown>, { rutinaId: string }>(functions, 'crearRutinaCallable');
 const cbActualizarRutina = httpsCallable<Record<string, unknown>, { ok: boolean }>(functions, 'actualizarRutinaCallable');
+const cbEliminarRutina = httpsCallable<{ rutinaId: string }, { ok: boolean }>(functions, 'eliminarRutinaCallable');
+const cbCrearTipoEquipo = httpsCallable<{ nombre: string }, { tipoId: string }>(functions, 'crearTipoEquipoCallable');
+const cbEliminarTipoEquipo = httpsCallable<{ tipoId: string }, { ok: boolean }>(functions, 'eliminarTipoEquipoCallable');
 const cbImportarRutinas = httpsCallable<{ rutinas: unknown[] }, { importadas: number }>(functions, 'importarRutinasCallable');
 
+const cbRenombrarCliente = httpsCallable<{ clienteId: string; nombre: string }, { ok: boolean }>(functions, 'renombrarClienteCallable');
+const cbEliminarCliente = httpsCallable<{ clienteId: string }, { ok: boolean }>(functions, 'eliminarClienteCallable');
+const cbGuardarContactos = httpsCallable<{ clienteId: string; contactos: ContactoCliente[] }, { ok: boolean }>(functions, 'guardarContactosClienteCallable');
+
 export const crearCliente = (nombre: string) => cbCrearCliente({ nombre }).then((r) => r.data);
+export const renombrarCliente = (clienteId: string, nombre: string) => cbRenombrarCliente({ clienteId, nombre }).then((r) => r.data);
+export const eliminarCliente = (clienteId: string) => cbEliminarCliente({ clienteId }).then((r) => r.data);
+export const guardarContactosCliente = (clienteId: string, contactos: ContactoCliente[]) =>
+  cbGuardarContactos({ clienteId, contactos }).then((r) => r.data);
 export const crearSede = (d: { clienteId: string; nombre: string; direccion?: string; responsable?: string }) =>
   cbCrearSede(d).then((r) => r.data);
 export const actualizarSede = (d: { sedeId: string; nombre?: string; direccion?: string; responsable?: string }) =>
   cbActualizarSede(d).then((r) => r.data);
-export const crearEquipo = (d: { sedeId: string; noInventario: string; descripcion?: string; rutinaTipoId?: string }) =>
+export const crearEquipo = (d: { sedeId: string; noInventario: string; descripcion?: string }) =>
   cbCrearEquipo(d).then((r) => r.data);
 export const actualizarEquipo = (d: {
   equipoId: string;
   noInventario?: string;
   descripcion?: string;
-  rutinaTipoId?: string | null;
 }) => cbActualizarEquipo(d).then((r) => r.data);
 export const crearRutina = (d: Record<string, unknown>) => cbCrearRutina(d).then((r) => r.data);
 export const actualizarRutina = (d: Record<string, unknown>) => cbActualizarRutina(d).then((r) => r.data);
+export const eliminarRutina = (rutinaId: string) => cbEliminarRutina({ rutinaId }).then((r) => r.data);
+export const crearTipoEquipo = (nombre: string) => cbCrearTipoEquipo({ nombre }).then((r) => r.data);
+export const eliminarTipoEquipo = (tipoId: string) => cbEliminarTipoEquipo({ tipoId }).then((r) => r.data);
 export const importarRutinas = (rutinas: unknown[]) => cbImportarRutinas({ rutinas }).then((r) => r.data);

@@ -1,6 +1,7 @@
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  downloadMediaMessage,
   fetchLatestBaileysVersion,
   useMultiFileAuthState,
 } from 'baileys';
@@ -28,11 +29,48 @@ const WEBHOOK_SECRET = process.env.WHATSAPP_WEBHOOK_SECRET ?? '';
 const ESTADO_URL = WEBHOOK_URL ? WEBHOOK_URL.replace(/webhookWhatsapp$/, 'estadoBot') : '';
 // Endpoint de la cola de salientes (avisos L/M/V que debemos entregar).
 const COLA_URL = WEBHOOK_URL ? WEBHOOK_URL.replace(/webhookWhatsapp$/, 'colaSalientes') : '';
+// Endpoint que recibe fotos (evidencia de Rutinas) para subir a Storage.
+const MEDIA_URL = WEBHOOK_URL ? WEBHOOK_URL.replace(/webhookWhatsapp$/, 'recibirMediaWhatsapp') : '';
+// Carpeta de la sesión de WhatsApp. Configurable para poder correr una instancia
+// de PRUEBAS en paralelo (AUTH_DIR=auth-pruebas) sin pisar la de producción.
+const AUTH_DIR = process.env.AUTH_DIR || 'auth';
 const INTERVALO_COLA_MS = 15000;
 const logger = pino({ level: 'silent' });
+console.log('🟢 gener-bot arrancó — build ANTIBAN-v4');
 
 // Socket activo (se setea al conectar). El poller de la cola lo usa para enviar.
 let socketActivo = null;
+
+// Seguimiento de acuses: msgId de WhatsApp → id del saliente en la cola.
+// Al recibir el acuse ✓✓ (status 3) se marca 'entregado'; si en ACK_TIMEOUT_MS
+// no llega ningún acuse, se marca 'sin_confirmar' (típico filtro anti-spam
+// hacia números que nunca han chateado con el bot).
+const ACK_TIMEOUT_MS = 45000;
+const esperandoAcuse = new Map(); // msgId → { colaId, timer }
+
+// Anti-ban: pausas con jitter para imitar a un humano (WhatsApp banea números
+// que mandan ráfagas instantáneas con cliente no oficial).
+const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+const entre = (min, max) => min + Math.floor(Math.random() * (max - min));
+
+function vigilarAcuse(msgId, colaId, telefono) {
+  if (!msgId) return;
+  const timer = setTimeout(async () => {
+    if (!esperandoAcuse.has(msgId)) return;
+    esperandoAcuse.delete(msgId);
+    console.error(`⚠️ Sin acuse de entrega para ${telefono} (msg ${msgId}); marco sin_confirmar.`);
+    await marcarSaliente(colaId, 'sin_confirmar', 'WhatsApp no confirmó la entrega. Pide al destinatario que guarde el número del bot o le escriba "hola" primero.');
+  }, ACK_TIMEOUT_MS);
+  esperandoAcuse.set(msgId, { colaId, timer });
+}
+
+async function acuseRecibido(msgId, status) {
+  const pend = esperandoAcuse.get(msgId);
+  if (!pend || status < 3) return; // 3 = entregado al teléfono, 4 = leído
+  clearTimeout(pend.timer);
+  esperandoAcuse.delete(msgId);
+  await marcarSaliente(pend.colaId, 'entregado');
+}
 
 async function publicarEstado(datos) {
   if (!ESTADO_URL) return;
@@ -87,6 +125,20 @@ async function enviarAlWebhook(payload) {
   return res.json().catch(() => ({}));
 }
 
+// Sube una foto (evidencia de Rutinas) al backend: binario crudo en el cuerpo,
+// número y caption en cabeceras. Devuelve true si la función la guardó.
+async function enviarFotoAlBackend({ telefono, buffer, mimetype, caption }) {
+  if (!MEDIA_URL) return false;
+  const headers = {
+    'content-type': mimetype || 'image/jpeg',
+    'x-webhook-secret': WEBHOOK_SECRET,
+    'x-telefono': telefono,
+  };
+  if (caption) headers['x-caption'] = encodeURIComponent(caption);
+  const res = await fetch(MEDIA_URL, { method: 'POST', headers, body: buffer });
+  return res.json().catch(() => ({}));
+}
+
 // Pregunta a la Cloud Function qué avisos hay pendientes, los entrega por
 // WhatsApp y marca cada uno como enviado. Corre solo si el socket está abierto.
 async function procesarColaSalientes() {
@@ -120,29 +172,64 @@ async function procesarColaSalientes() {
     return;
   }
 
+  let primero = true;
   for (const m of mensajes) {
     if (!m?.id || !m?.telefono || !m?.texto) continue;
-    const jid = `${String(m.telefono).replace(/\D/g, '')}@s.whatsapp.net`;
+    // Pausa aleatoria ENTRE destinatarios (8-15 s): nada de ráfagas.
+    if (!primero) {
+      const espera = entre(8000, 15000);
+      console.log(`⏳ Pausa anti-ban de ${Math.round(espera / 1000)}s antes del siguiente envío…`);
+      await pausa(espera);
+      if (!socketActivo) return; // se cayó la conexión durante la pausa
+    }
+    primero = false;
+    const num = String(m.telefono).replace(/\D/g, '');
+    // Pregúntale a WhatsApp el JID CORRECTO del número. Esto resuelve el lío
+    // 521/52 de México y confirma que el número realmente tiene WhatsApp. Sin
+    // esto, mandábamos a un JID inexistente y WhatsApp lo tragaba en silencio.
+    let jid;
     try {
+      const [info] = (await socketActivo.onWhatsApp(num)) ?? [];
+      if (!info?.exists) {
+        console.error(`⚠️ ${num} no está en WhatsApp; no se entrega ${m.id}.`);
+        await marcarSaliente(m.id, 'error', 'El número no tiene WhatsApp.');
+        continue;
+      }
+      jid = info.jid;
+      console.log(`🔎 ${num} → JID ${jid}`);
+    } catch (e) {
+      console.error(`No se pudo verificar ${num} en WhatsApp:`, e?.message ?? e);
+      jid = `${num}@s.whatsapp.net`; // último recurso
+    }
+    try {
+      // Simula a un humano: "escribiendo…" 2-5 s antes de mandar.
+      try {
+        await socketActivo.sendPresenceUpdate('composing', jid);
+        await pausa(entre(2000, 5000));
+        await socketActivo.sendPresenceUpdate('paused', jid);
+      } catch { /* la presencia es cosmética; si falla, se envía igual */ }
+
       if (m.documentoUrl) {
         // Renderiza la cotización a PDF y la manda como documento adjunto.
         try {
           const pdf = await urlAPdf(m.documentoUrl);
-          await socketActivo.sendMessage(jid, {
+          const enviado = await socketActivo.sendMessage(jid, {
             document: pdf,
             mimetype: 'application/pdf',
             fileName: m.fileName || 'Cotizacion.pdf',
             caption: m.texto,
           });
-          console.log(`📄 PDF entregado a ${m.telefono}.`);
+          console.log(`📄 PDF enviado a ${m.telefono} (msgId ${enviado?.key?.id ?? '?'}); esperando acuse…`);
+          vigilarAcuse(enviado?.key?.id, m.id, m.telefono);
         } catch (errPdf) {
           // Si el PDF falla, no dejamos al cliente sin nada: mandamos el enlace.
           console.error(`Falló el PDF (${m.id}), envío el enlace:`, errPdf?.message ?? errPdf);
           await socketActivo.sendMessage(jid, { text: `${m.texto}\n${m.documentoUrl}` });
         }
       } else {
-        await socketActivo.sendMessage(jid, { text: m.texto });
-        console.log(`📤 Aviso entregado a ${m.telefono}.`);
+        const enviado = await socketActivo.sendMessage(jid, { text: m.texto });
+        console.log(`📤 Texto enviado a ${m.telefono} (msgId ${enviado?.key?.id ?? '?'}); esperando acuse…`);
+        vigilarAcuse(enviado?.key?.id, m.id, m.telefono);
       }
       await marcarSaliente(m.id, 'enviado');
     } catch (e) {
@@ -205,7 +292,7 @@ async function marcarSaliente(id, estatus, motivo) {
 }
 
 async function iniciar() {
-  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth'));
+  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, AUTH_DIR));
   // Fija la version actual de WhatsApp Web: sin esto, una version desfasada
   // provoca "código 405" en la conexión fresca.
   const { version } = await fetchLatestBaileysVersion();
@@ -219,6 +306,21 @@ async function iniciar() {
   });
 
   sock.ev.on('creds.update', saveCreds);
+
+  // Acuses de los mensajes que ENVIAMOS (diagnóstico de entrega):
+  // 1=pendiente · 2=✓ llegó al servidor · 3=✓✓ entregado al teléfono · 4=leído.
+  // Si un mensaje se queda en 2, WhatsApp lo aceptó pero el teléfono destino
+  // nunca lo recibió (bloqueo, filtro anti-spam o número inactivo).
+  const NOMBRE_ACK = { 0: 'ERROR', 1: 'pendiente', 2: '✓ servidor', 3: '✓✓ ENTREGADO', 4: 'LEÍDO', 5: 'reproducido' };
+  sock.ev.on('messages.update', (updates) => {
+    for (const u of updates) {
+      const st = u.update?.status;
+      if (u.key?.fromMe && st != null) {
+        console.log(`📬 Acuse ${u.key.id} → ${st} (${NOMBRE_ACK[st] ?? st}) [${u.key.remoteJid}]`);
+        acuseRecibido(u.key.id, st).catch((e) => console.error('Error reportando acuse:', e?.message ?? e));
+      }
+    }
+  });
 
   sock.ev.on('connection.update', (u) => {
     const { connection, lastDisconnect, qr } = u;
@@ -241,9 +343,9 @@ async function iniciar() {
       if (cerroSesion) {
         // Sesión cerrada (desde el teléfono o desde el portal): borramos las
         // credenciales y reiniciamos para emitir un QR nuevo automáticamente.
-        console.log('Sesión cerrada. Limpio bot/auth y reinicio para mostrar un QR nuevo…');
-        rm(path.join(__dirname, 'auth'), { recursive: true, force: true })
-          .catch((e) => console.error('No se pudo borrar bot/auth:', e?.message ?? e))
+        console.log(`Sesión cerrada. Limpio bot/${AUTH_DIR} y reinicio para mostrar un QR nuevo…`);
+        rm(path.join(__dirname, AUTH_DIR), { recursive: true, force: true })
+          .catch((e) => console.error(`No se pudo borrar bot/${AUTH_DIR}:`, e?.message ?? e))
           .finally(() => {
             setTimeout(() => iniciar().catch((e) => console.error('Fallo al reiniciar:', e?.message ?? e)), 2000);
           });
@@ -262,15 +364,45 @@ async function iniciar() {
       const jid = m.key.remoteJid;
       if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') continue; // ignora grupos/estados
 
-      const texto = textoDeMensaje(m);
-      if (!texto) continue;
-
       const pn = telefonoReal(m);
       const telefono = pn ?? telefonoDeJid(jid);
       // El @lid en Baileys 6.7.x entrega mal (el mensaje llega y WhatsApp lo
       // borra). Con sesión limpia, respondemos al JID canónico del número real
       // (@s.whatsapp.net), que es el direccionamiento más estable.
       const jidRespuesta = pn ? `${pn}@s.whatsapp.net` : jid;
+
+      // ¿Trae foto? (Rutinas Fase 1: evidencia fotográfica). La descargamos y
+      // la reenviamos al backend; no pasa por Portteo.
+      const imagen = m.message.imageMessage;
+      if (imagen) {
+        console.log(`📷 Foto de ${telefono} (jid ${jid})…`);
+        try {
+          const buffer = await downloadMediaMessage(m, 'buffer', {}, {
+            logger,
+            reuploadRequest: sock.updateMediaMessage,
+          });
+          const data = await enviarFotoAlBackend({
+            telefono,
+            buffer,
+            mimetype: imagen.mimetype,
+            caption: imagen.caption,
+          });
+          if (data?.ok) {
+            // Si hay rutina en curso, el backend devuelve la guía del paso.
+            await sock.sendMessage(jidRespuesta, { text: data.respuesta || '📷 Foto recibida, gracias.' });
+            console.log(`✅ Foto de ${telefono} guardada.`);
+          } else {
+            console.log(`↪️ Foto no guardada (número fuera de lista o error): ${telefono}.`);
+          }
+        } catch (e) {
+          console.error('Error con la foto:', e?.message ?? e);
+        }
+        continue;
+      }
+
+      const texto = textoDeMensaje(m);
+      if (!texto) continue;
+
       console.log(`📩 Mensaje de ${telefono} (jid ${jid}) → respondo a ${jidRespuesta}: "${texto.slice(0, 40)}"`);
 
       try {
@@ -294,9 +426,16 @@ async function iniciar() {
 }
 
 // Poller de la cola de salientes (avisos L/M/V). Corre en segundo plano; solo
-// entrega cuando hay socket abierto.
+// entrega cuando hay socket abierto. El candado evita corridas encimadas: con
+// las pausas anti-ban un lote puede tardar más que el intervalo, y sin candado
+// la siguiente corrida releería los mismos pendientes (envíos dobles).
+let procesandoCola = false;
 setInterval(() => {
-  procesarColaSalientes().catch((e) => console.error('Error en la cola de salientes:', e?.message ?? e));
+  if (procesandoCola) return;
+  procesandoCola = true;
+  procesarColaSalientes()
+    .catch((e) => console.error('Error en la cola de salientes:', e?.message ?? e))
+    .finally(() => { procesandoCola = false; });
 }, INTERVALO_COLA_MS);
 
 iniciar().catch((e) => {

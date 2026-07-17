@@ -1,6 +1,6 @@
 import { FieldValue, Firestore, Timestamp } from 'firebase-admin/firestore';
 import { reconciliarTotales } from '../dominio/totales';
-import { parsearFolio } from '../dominio/folio';
+import { nombreContador, parsearFolio } from '../dominio/folio';
 import { Partida } from '../dominio/tipos';
 
 // ETL de carga semilla del histórico. Consume cotizaciones ya extraídas a JSON
@@ -32,7 +32,7 @@ export interface ResultadoETL {
   importadas: number;
   rechazadas: { folio: string; motivo: string }[];
   registrosBitacora: number;
-  semillasFolio: Record<string, number>; // { "2026": 7, "2025": 19 }
+  semillasFolio: Record<string, number>; // por mes: { "folio_2026_07": 7, "folio_2025_12": 19 }
 }
 
 function idDeFolio(folio: string): string {
@@ -51,7 +51,8 @@ export async function importarCotizaciones(
     semillasFolio: {},
   };
 
-  const semillas: Record<number, number> = {};
+  // Semilla por MES (clave = nombre del contador, ej. "folio_2026_07").
+  const semillas: Record<string, number> = {};
 
   for (const r of registros) {
     const parsed = parsearFolio(r.folio);
@@ -70,8 +71,8 @@ export async function importarCotizaciones(
       continue;
     }
 
-    const anio = parsed.anio;
-    semillas[anio] = Math.max(semillas[anio] ?? 0, parsed.consecutivo);
+    const clave = nombreContador(parsed.anio, parsed.mes); // ej. folio_2026_07
+    semillas[clave] = Math.max(semillas[clave] ?? 0, parsed.consecutivo);
 
     const cotId = idDeFolio(r.folio);
     const fecha = Timestamp.fromDate(new Date(r.fecha));
@@ -132,16 +133,16 @@ export async function importarCotizaciones(
     res.importadas++;
   }
 
-  // Semilla del contador por año: el consecutivo más alto encontrado. Solo se
-  // sube (nunca baja) para no pisar folios ya emitidos por el sistema.
-  for (const [anioStr, maxConsecutivo] of Object.entries(semillas)) {
-    const ref = db.doc(`counters/folio_${anioStr}`);
+  // Semilla del contador por MES: el consecutivo más alto encontrado en cada mes.
+  // Solo se sube (nunca baja) para no pisar folios ya emitidos por el sistema.
+  for (const [contador, maxConsecutivo] of Object.entries(semillas)) {
+    const ref = db.doc(`counters/${contador}`);
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const actual = snap.exists ? (snap.data()!.ultimo as number) : 0;
       const nuevo = Math.max(actual, maxConsecutivo);
       tx.set(ref, { ultimo: nuevo });
-      res.semillasFolio[anioStr] = nuevo;
+      res.semillasFolio[contador] = nuevo;
     });
   }
 

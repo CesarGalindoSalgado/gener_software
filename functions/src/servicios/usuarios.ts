@@ -14,6 +14,7 @@ export interface DatosNuevoUsuario {
   rol: Rol;
   password: string;
   telefono?: string;
+  telegramChatId?: string;
 }
 
 function normalizarCorreo(correo: string): string {
@@ -59,6 +60,7 @@ export async function crearUsuario(db: Firestore, datos: DatosNuevoUsuario): Pro
       rol: datos.rol,
       activo: true,
       telefono: datos.telefono?.replace(/\D/g, '') || null,
+      telegramChatId: datos.telegramChatId?.replace(/\D/g, '') || null,
       uid,
       creadoEn: FieldValue.serverTimestamp(),
     },
@@ -69,7 +71,7 @@ export async function crearUsuario(db: Firestore, datos: DatosNuevoUsuario): Pro
 export async function actualizarUsuario(
   db: Firestore,
   correo: string,
-  cambios: { nombre?: string; rol?: Rol; activo?: boolean; telefono?: string; password?: string }
+  cambios: { nombre?: string; rol?: Rol; activo?: boolean; telefono?: string; telegramChatId?: string; password?: string }
 ): Promise<void> {
   const id = normalizarCorreo(correo);
   const upd: Record<string, unknown> = {};
@@ -80,6 +82,7 @@ export async function actualizarUsuario(
   }
   if (cambios.activo !== undefined) upd.activo = cambios.activo;
   if (cambios.telefono !== undefined) upd.telefono = cambios.telefono.replace(/\D/g, '') || null;
+  if (cambios.telegramChatId !== undefined) upd.telegramChatId = cambios.telegramChatId.replace(/\D/g, '') || null;
 
   // La contraseña puede llegar como undefined, null o '' (no cambiar); solo se
   // toca si viene una cadena no vacía.

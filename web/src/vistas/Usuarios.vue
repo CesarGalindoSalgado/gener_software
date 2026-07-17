@@ -29,7 +29,7 @@ const mostrandoForma = ref(false);
 const guardando = ref(false);
 const error = ref('');
 const ok = ref('');
-const nuevo = reactive({ nombre: '', correo: '', rol: 'secretaria' as Rol, password: '', telefono: '' });
+const nuevo = reactive({ nombre: '', correo: '', rol: 'secretaria' as Rol, password: '', telefono: '', telegramChatId: '' });
 
 async function crear() {
   error.value = '';
@@ -42,7 +42,7 @@ async function crear() {
   try {
     await crearUsuario({ ...nuevo });
     ok.value = `Usuario ${nuevo.correo} creado.`;
-    Object.assign(nuevo, { nombre: '', correo: '', rol: 'secretaria', password: '', telefono: '' });
+    Object.assign(nuevo, { nombre: '', correo: '', rol: 'secretaria', password: '', telefono: '', telegramChatId: '' });
     mostrandoForma.value = false;
   } catch (e: unknown) {
     error.value = (e as { message?: string })?.message ?? 'No se pudo crear el usuario.';
@@ -69,7 +69,7 @@ async function alternarActivo(u: UsuarioDoc) {
 const editando = ref<UsuarioDoc | null>(null);
 const guardandoEdit = ref(false);
 const errorEdit = ref('');
-const edit = reactive({ nombre: '', rol: 'secretaria' as Rol, telefono: '', password: '' });
+const edit = reactive({ nombre: '', rol: 'secretaria' as Rol, telefono: '', telegramChatId: '', password: '' });
 
 function abrirEditar(u: UsuarioDoc) {
   editando.value = u;
@@ -77,6 +77,7 @@ function abrirEditar(u: UsuarioDoc) {
   edit.nombre = u.nombre ?? '';
   edit.rol = u.rol;
   edit.telefono = u.telefono ?? '';
+  edit.telegramChatId = u.telegramChatId ?? '';
   edit.password = '';
 }
 
@@ -98,6 +99,7 @@ async function guardarEdicion() {
       nombre: edit.nombre.trim(),
       rol: edit.rol,
       telefono: edit.telefono,
+      telegramChatId: edit.telegramChatId,
       password: edit.password || undefined,
     });
     ok.value = `Usuario ${editando.value.correo} actualizado.`;
@@ -153,8 +155,12 @@ const total = computed(() => usuarios.value.length);
           </select>
         </div>
         <div>
-          <label class="eyebrow block mb-1">Teléfono (para el bot, opcional)</label>
+          <label class="eyebrow block mb-1">Teléfono (WhatsApp, opcional)</label>
           <input v-model="nuevo.telefono" placeholder="5217771234567" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
+        </div>
+        <div>
+          <label class="eyebrow block mb-1">Telegram Chat ID (respaldo, opcional)</label>
+          <input v-model="nuevo.telegramChatId" placeholder="123456789" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
         </div>
         <div class="flex items-end">
           <button
@@ -251,9 +257,13 @@ const total = computed(() => usuarios.value.length);
               </select>
             </div>
             <div>
-              <label class="eyebrow block mb-1">Teléfono (bot)</label>
+              <label class="eyebrow block mb-1">Teléfono (WhatsApp)</label>
               <input v-model="edit.telefono" placeholder="5217771234567" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
             </div>
+          </div>
+          <div>
+            <label class="eyebrow block mb-1">Telegram Chat ID (respaldo)</label>
+            <input v-model="edit.telegramChatId" placeholder="123456789" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
           </div>
           <div>
             <label class="eyebrow block mb-1">Nueva contraseña (vacío = no cambiar)</label>
