@@ -38,7 +38,7 @@ const RE_SIN_FIRMA = /\b(sin firma|no hay firma|no firm|faltante|no me firm|no p
 // Al terminar los pasos, pedimos el nombre de quien recibe (antes del reporte).
 const TEXTO_TERMINADO = '🎉 ¡Terminaste todos los pasos!\n\nPor último, ¿*quién recibe* el servicio? Escríbeme el *nombre* de la persona.';
 // Recordatorio si el técnico manda algo más estando en la etapa de revisión.
-const TEXTO_REVISAR = 'Ya terminaste esta rutina. Revisa tu reporte con el enlace que te compartí y, si todo está bien, apruébalo con el botón para recibir el PDF. _(o escribe *cancelar*)_';
+const TEXTO_REVISAR = 'Ya terminaste esta rutina. Revisa tu reporte con el enlace que te compartí y, si todo está bien, apruébalo con el botón para recibir el PDF. _(si no te firmaron, escribe *sin firma*; para cancelar, *cancelar*)_';
 
 // --- Construcción inicial ---
 

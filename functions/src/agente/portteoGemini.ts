@@ -127,7 +127,6 @@ export async function clasificarIntencionRutina(
     model: MODELO,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: {
-      thinkingConfig: { thinkingBudget: 0 },
       responseMimeType: 'application/json',
       responseSchema: {
         type: Type.OBJECT,
@@ -202,7 +201,6 @@ export async function interpretarMensajeAlta(
     model: MODELO,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: {
-      thinkingConfig: { thinkingBudget: 0 },
       responseMimeType: 'application/json',
       responseSchema: {
         type: Type.OBJECT,
@@ -281,9 +279,10 @@ export async function conversarConPortteoGemini(params: {
       config: {
         systemInstruction: SYSTEM,
         tools: [{ functionDeclarations: DECLARACIONES }],
-        // Desactiva el "thinking" de gemini-2.5-flash: con el prompt grande a
-        // veces devolvía un turno vacío (solo pensamiento) y rompía el loop.
-        thinkingConfig: { thinkingBudget: 0 },
+        // Nota: se quitó thinkingConfig/thinkingBudget:0. El alias
+        // gemini-flash-latest dejó de aceptar thinkingBudget:0 (400
+        // INVALID_ARGUMENT, 2026-08). Los turnos vacíos ya los cubre el
+        // reintento de abajo (vaciosSeguidos).
       },
     });
 

@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import { getStorage } from 'firebase/storage';
 
 // Config del proyecto. Estos valores NO son secretos: identifican el proyecto y
 // viajan al cliente. La seguridad real vive en las reglas de Firestore y en la
@@ -24,6 +25,7 @@ export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
 export const functions = getFunctions(firebaseApp, 'us-central1');
+export const storage = getStorage(firebaseApp);
 
 // Con VITE_EMULADOR=1, las callables van al emulador local de Functions
 // (auth y firestore siguen siendo los reales). Útil mientras no hay Blaze.

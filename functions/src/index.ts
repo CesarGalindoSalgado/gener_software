@@ -81,6 +81,14 @@ import {
 } from './servicios/drive';
 import { paginaReporteHtml } from './servicios/documentoReporteHtml';
 import { datosReporte, ErrorReporte, validarYFoliar } from './servicios/reporte';
+import {
+  crearOrdenReparacion,
+  guardarDiagnostico,
+  cambiarEstatusReparacion,
+  crearCotizacionDesdeOrden,
+  entregarOrden,
+} from './servicios/reparaciones';
+import { EstatusReparacion } from './dominio/tipos';
 import { MensajeEntrante } from './canal/tipos';
 import { enviarTelegram, urlArchivoTelegram } from './servicios/telegramApi';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -682,6 +690,100 @@ export const guardarContactosClienteCallable = onCall({ region: REGION }, async 
     return { ok: true };
   } catch (e) {
     throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudieron guardar los contactos.');
+  }
+});
+
+// ---- Módulo de Reparaciones (Taller) ----
+export const crearOrdenReparacionCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const d = (req.data ?? {}) as Record<string, any>;
+  const eq = (d.equipo ?? {}) as Record<string, any>;
+  try {
+    return await crearOrdenReparacion(
+      db,
+      {
+        clienteId: d.clienteId ? String(d.clienteId) : null,
+        clienteNombre: String(d.clienteNombre ?? ''),
+        contacto: d.contacto ?? null,
+        equipo: {
+          descripcion: String(eq.descripcion ?? ''),
+          marca: eq.marca ? String(eq.marca) : null,
+          modelo: eq.modelo ? String(eq.modelo) : null,
+          numeroSerie: eq.numeroSerie ? String(eq.numeroSerie) : null,
+          accesorios: eq.accesorios ? String(eq.accesorios) : null,
+        },
+        fallaReportada: String(d.fallaReportada ?? ''),
+        fotosRecepcion: Array.isArray(d.fotosRecepcion) ? d.fotosRecepcion.map(String) : [],
+        recibidoPor: usuario.correo ?? null,
+      },
+      new Date()
+    );
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear la orden.');
+  }
+});
+
+export const guardarDiagnosticoReparacionCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const d = (req.data ?? {}) as Record<string, any>;
+  try {
+    return await guardarDiagnostico(
+      db,
+      String(d.ordenId ?? ''),
+      {
+        hallazgos: String(d.hallazgos ?? ''),
+        refacciones: d.refacciones ? String(d.refacciones) : null,
+        tecnico: d.tecnico ? String(d.tecnico) : null,
+      },
+      new Date()
+    );
+  } catch (e) {
+    throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo guardar el diagnóstico.');
+  }
+});
+
+export const cambiarEstatusReparacionCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const d = (req.data ?? {}) as Record<string, any>;
+  try {
+    return await cambiarEstatusReparacion(
+      db,
+      String(d.ordenId ?? ''),
+      String(d.estatus ?? '') as EstatusReparacion,
+      new Date(),
+      d.motivo ? String(d.motivo) : null
+    );
+  } catch (e) {
+    throw new HttpsError('failed-precondition', e instanceof Error ? e.message : 'No se pudo cambiar el estado.');
+  }
+});
+
+export const crearCotizacionDesdeReparacionCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  try {
+    return await crearCotizacionDesdeOrden(db, String(req.data?.ordenId ?? ''), usuario.correo, new Date());
+  } catch (e) {
+    throw new HttpsError('failed-precondition', e instanceof Error ? e.message : 'No se pudo crear la cotización.');
+  }
+});
+
+export const entregarOrdenReparacionCallable = onCall({ region: REGION }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const d = (req.data ?? {}) as Record<string, any>;
+  try {
+    return await entregarOrden(
+      db,
+      String(d.ordenId ?? ''),
+      { recibeNombre: String(d.recibeNombre ?? ''), firmaUrl: d.firmaUrl ? String(d.firmaUrl) : null },
+      new Date()
+    );
+  } catch (e) {
+    throw new HttpsError('failed-precondition', e instanceof Error ? e.message : 'No se pudo registrar la entrega.');
   }
 });
 
@@ -1473,7 +1575,8 @@ export const aprobarReporteWhatsapp = onRequest(
       telefono,
       texto:
         `✅ Reporte de rutina ${folio} aprobado — aquí va en PDF.\n\n` +
-        `Listo, ahora imprímelo y fírmalo, y mándame una *foto de la hoja firmada* para *cerrar el reporte*. 📸`,
+        `Listo, ahora imprímelo y fírmalo, y mándame una *foto de la hoja firmada* para *cerrar el reporte*. 📸\n\n` +
+        `_Si no te firmaron, escribe *sin firma*. Para cancelar, escribe *cancelar*._`,
       motivo: 'reporte_rutina',
       documentoUrl: enlaceReporte(ejecucionId),
       fileName,

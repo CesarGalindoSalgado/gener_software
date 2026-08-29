@@ -627,7 +627,7 @@ function conEnlaceAlFirmar(
   construirEnlace?: (ejecucionId: string) => string
 ): string {
   if (construirEnlace && etapaDespues === 'firma' && etapaAntes !== 'firma') {
-    return `${respuesta}\n\n📄 *Así quedó tu reporte* — revísalo aquí. Si todo está bien, presiona el botón *Aprobar* y te envío el PDF:\n${construirEnlace(ejecucionId)}`;
+    return `${respuesta}\n\n📄 *Así quedó tu reporte* — revísalo aquí. Si todo está bien, presiona el botón *Aprobar* y te envío el PDF:\n${construirEnlace(ejecucionId)}\n\n_¿No te firmaron? Escribe *sin firma*. ¿Cancelar la rutina? Escribe *cancelar*._`;
   }
   return respuesta;
 }

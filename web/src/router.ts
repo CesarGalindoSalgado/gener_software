@@ -97,6 +97,12 @@ const router = createRouter({
           meta: { soloOperador: true },
         },
         {
+          path: 'reparaciones',
+          name: 'reparaciones',
+          component: () => import('./vistas/Reparaciones.vue'),
+          meta: { soloOperador: true },
+        },
+        {
           path: 'config-correo',
           name: 'configCorreo',
           component: () => import('./vistas/ConfiguracionCorreo.vue'),

@@ -1,0 +1,65 @@
+[
+  {
+    "folio": "GPC-MMYY-NNN",
+    "fecha": "AAAA-MM-DD",
+    "cliente": {
+      "nombre": "NOMBRE DEL CLIENTE",
+      "atencion": "NOMBRE DEL CONTACTO O null",
+      "telefono": "521XXXXXXXXXX O null",
+      "correo": "correo@cliente.com O null"
+    },
+    "asunto": "ASUNTO / TITULO DE LA COTIZACION",
+    "partidas": [
+      {
+        "titulo": "NOMBRE DE LA PARTIDA 1",
+        "lineas": [
+          "Primer punto del alcance",
+          "Segundo punto del alcance",
+          "Tercer punto del alcance"
+        ],
+        "cantidad": 1,
+        "importe": 0
+      },
+      {
+        "titulo": "NOMBRE DE LA PARTIDA 2 (borra este bloque si solo hay una partida)",
+        "lineas": [
+          "Punto del alcance de esta partida"
+        ],
+        "cantidad": 1,
+        "importe": 0
+      }
+    ],
+    "subtotal": 0,
+    "iva": 0,
+    "total": 0,
+    "formaPago": "EJ: 50% anticipo, 50% contra entrega",
+    "tiempoEntrega": "EJ: 15 dias habiles"
+  },
+
+  {
+    "folio": "GPC-MMYY-NNN",
+    "fecha": "AAAA-MM-DD",
+    "cliente": {
+      "nombre": "OTRO CLIENTE",
+      "atencion": null,
+      "telefono": null,
+      "correo": null
+    },
+    "asunto": "ASUNTO DE LA SEGUNDA COTIZACION",
+    "partidas": [
+      {
+        "titulo": "NOMBRE DE LA PARTIDA",
+        "lineas": [
+          "Punto del alcance"
+        ],
+        "cantidad": 1,
+        "importe": 0
+      }
+    ],
+    "subtotal": 0,
+    "iva": 0,
+    "total": 0,
+    "formaPago": "",
+    "tiempoEntrega": ""
+  }
+]

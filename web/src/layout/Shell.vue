@@ -4,7 +4,7 @@ import { RouterLink, RouterView, useRouter } from 'vue-router';
 import {
   FileText, Users, LayoutTemplate, BellRing, LogOut, Zap, ClipboardCheck,
   MessageCircle, Wrench, Building2, ClipboardList, Lightbulb, Contact, PanelLeftClose, PanelLeftOpen,
-  LayoutDashboard, BarChart3, Mail, HardDrive, Send,
+  LayoutDashboard, BarChart3, Mail, HardDrive, Send, Hammer,
 } from 'lucide-vue-next';
 import { sesion, cerrarSesion } from '../sesion';
 import { ROLES_ADMIN, ROLES_OPERADOR } from '../dominio/tipos';
@@ -51,6 +51,12 @@ const grupos = computed(() => {
         { nombre: 'Sedes y equipos', ruta: 'sedes', icono: Building2, visible: esOperador.value },
         { nombre: 'Ejecuciones', ruta: 'ejecuciones', icono: ClipboardList, visible: esOperador.value },
         { nombre: 'Oportunidades', ruta: 'oportunidades', icono: Lightbulb, visible: esOperador.value },
+      ],
+    },
+    {
+      titulo: 'Reparaciones',
+      items: [
+        { nombre: 'Reparaciones', ruta: 'reparaciones', icono: Hammer, visible: esOperador.value },
       ],
     },
     {

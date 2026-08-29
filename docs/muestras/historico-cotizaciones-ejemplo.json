@@ -1,0 +1,66 @@
+[
+  {
+    "folio": "GPC-0724-001",
+    "fecha": "2024-07-15",
+    "cliente": {
+      "nombre": "Hospital San José",
+      "atencion": "Ing. Pérez",
+      "telefono": "5217771234567",
+      "correo": "compras@hsj.com"
+    },
+    "asunto": "Suministro de radiador nuevo",
+    "partidas": [
+      {
+        "titulo": "Radiador para subestación",
+        "lineas": [
+          "Desmontaje del radiador dañado",
+          "Suministro e instalación de radiador nuevo",
+          "Pruebas de operación"
+        ],
+        "cantidad": 1,
+        "importe": 45000
+      }
+    ],
+    "subtotal": 45000,
+    "iva": 7200,
+    "total": 52200,
+    "formaPago": "50% anticipo, 50% contra entrega",
+    "tiempoEntrega": "15 días hábiles"
+  },
+  {
+    "folio": "GPC-0824-002",
+    "fecha": "2024-08-03",
+    "cliente": {
+      "nombre": "Planta Industrial del Norte",
+      "atencion": null,
+      "telefono": null,
+      "correo": null
+    },
+    "asunto": "Mantenimiento preventivo y reparación",
+    "partidas": [
+      {
+        "titulo": "Mantenimiento preventivo",
+        "lineas": [
+          "Limpieza general del equipo",
+          "Revisión de conexiones eléctricas"
+        ],
+        "cantidad": 1,
+        "importe": 12000
+      },
+      {
+        "titulo": "Reparación de radiador",
+        "lineas": [
+          "Reemplazo de empaques",
+          "Prueba hidrostática"
+        ],
+        "cantidad": 1,
+        "importe": 8000
+      }
+    ],
+    "subtotal": 20000,
+    "iva": 3200,
+    "total": 23200,
+    "formaPago": "Contado contra entrega",
+    "tiempoEntrega": "10 días hábiles"
+  }
+]

@@ -58,6 +58,28 @@ const mensaje = ref('');
 const enviando = ref(false);
 const error = ref('');
 const chatBox = ref<HTMLElement | null>(null);
+const cajaMensaje = ref<HTMLTextAreaElement | null>(null);
+// Hace crecer el textarea del chat conforme se escriben líneas (hasta un tope;
+// luego hace scroll interno). Se llama al escribir y al limpiar tras enviar.
+function ajustarAltoCaja() {
+  const el = cajaMensaje.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+// Formatea el texto del chat: primero ESCAPA el HTML (seguridad: el texto viene
+// del LLM y del usuario) y luego convierte Markdown básico a etiquetas reales:
+// **negritas** → <strong>, *cursivas* → <em>. Los saltos de línea los respeta
+// el whitespace-pre-wrap del contenedor.
+function formatearChat(t: string): string {
+  const esc = (t ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return esc
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+}
 
 let offCot: (() => void) | null = null;
 let offVer: (() => void) | null = null;
@@ -181,6 +203,7 @@ async function enviar() {
   const texto = mensaje.value.trim();
   if (!texto || enviando.value) return;
   mensaje.value = '';
+  nextTick(() => ajustarAltoCaja());
   error.value = '';
   enviando.value = true;
   try {
@@ -695,7 +718,8 @@ Puedes dármelos de golpe o uno por uno.</div>
               :class="m.rol === 'usuario'
                 ? 'ml-auto bg-accent text-white'
                 : 'mr-auto bg-white border border-line text-ink'"
-            >{{ m.texto }}</div>
+              v-html="formatearChat(m.texto)"
+            ></div>
             <div v-if="enviando" class="mr-auto flex items-center gap-2 text-muted-ink text-sm">
               <LoaderCircle :size="14" class="animate-spin" /> Portteo está trabajando…
             </div>
@@ -704,17 +728,21 @@ Puedes dármelos de golpe o uno por uno.</div>
           <p v-if="esHistorica" class="p-3 border-t border-line text-xs text-center text-muted-ink shrink-0">
             Viendo una revisión anterior. <button @click="revVerId = null" class="text-accent hover:underline">Vuelve a la actual</button> para editar.
           </p>
-          <form v-else @submit.prevent="enviar" class="p-3 border-t border-line flex gap-2 shrink-0">
-            <input
+          <form v-else @submit.prevent="enviar" class="p-3 border-t border-line flex gap-2 items-end shrink-0">
+            <textarea
+              ref="cajaMensaje"
               v-model="mensaje"
               :disabled="enviando"
-              placeholder="Escribe a Portteo…"
-              class="flex-1 h-10 px-3 rounded-md border border-line bg-white text-sm focus:outline-none focus:border-accent"
-            />
+              rows="1"
+              @input="ajustarAltoCaja"
+              @keydown.enter.exact.prevent="enviar"
+              placeholder="Escribe a Portteo…  (Shift+Enter para salto de línea)"
+              class="flex-1 min-h-10 max-h-40 py-2 px-3 rounded-md border border-line bg-white text-sm leading-5 resize-none focus:outline-none focus:border-accent"
+            ></textarea>
             <button
               type="submit"
               :disabled="enviando || !mensaje.trim()"
-              class="h-10 w-10 rounded-md bg-accent text-white flex items-center justify-center hover:bg-accent-bright disabled:opacity-50"
+              class="h-10 w-10 shrink-0 rounded-md bg-accent text-white flex items-center justify-center hover:bg-accent-bright disabled:opacity-50"
             >
               <Send :size="16" />
             </button>

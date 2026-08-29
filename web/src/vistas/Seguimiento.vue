@@ -54,7 +54,10 @@ async function marcar(id: string, estatus: 'autorizada' | 'rechazada') {
   error.value = '';
   try {
     await cambiarEstatus(id, estatus);
-    // Sale sola de la lista (ya no está "enviada") por el listener.
+    // Quitamos la fila al instante (ya no está "enviada"). El listener de la
+    // consulta compuesta a veces no entrega el cambio incremental hasta recargar,
+    // así que no dependemos solo de él para actualizar la vista.
+    items.value = items.value.filter((c) => c.id !== id);
   } catch (e: unknown) {
     error.value = (e as { message?: string })?.message ?? 'No se pudo actualizar.';
   } finally {

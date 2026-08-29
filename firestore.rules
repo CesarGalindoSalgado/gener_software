@@ -115,6 +115,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---- Módulo de Reparaciones (Taller): operadores leen; escribe el backend ----
+    match /ordenes_reparacion/{doc=**} {
+      allow read: if esOperador();
+      allow write: if false;
+    }
+
     // Contadores de folio: nunca accesibles desde el cliente
     match /counters/{doc=**} {
       allow read, write: if false;

@@ -45,6 +45,60 @@ export interface Cliente {
   driveFolderId?: string;
 }
 
+// ---- Módulo de Reparaciones (Taller) ----
+// Un equipo llega a reparación; se le abre una Orden de Reparación con folio
+// OR-… y se le sigue por etapas hasta entregarlo. Ver dominio/reparacion.ts.
+export type EstatusReparacion =
+  | 'recibido'
+  | 'en_diagnostico'
+  | 'cotizado'
+  | 'aprobado'
+  | 'en_reparacion'
+  | 'listo'
+  | 'entregado'
+  | 'rechazado'
+  | 'devuelto';
+
+// Equipo que ingresa al taller. Puede o no estar registrado en `equipos` (a
+// veces es un equipo que traen una sola vez), por eso los datos van embebidos.
+export interface EquipoReparacion {
+  descripcion: string; // "Radiador de subestación", "Motor 5 HP"…
+  marca?: string | null;
+  modelo?: string | null;
+  numeroSerie?: string | null; // "s/n" si no tiene
+  accesorios?: string | null; // lo que entregan junto con el equipo
+}
+
+export interface DiagnosticoReparacion {
+  hallazgos: string; // qué encontró el técnico
+  refacciones?: string | null; // refacciones/trabajos necesarios (texto)
+  tecnico?: string | null;
+}
+
+export interface OrdenReparacion {
+  folio: string; // OR-MMYY-NNN, asignado AL RECIBIR (número de rastreo)
+  estatus: EstatusReparacion;
+  // Cliente denormalizado; opcionalmente ligado a la colección `clientes`.
+  clienteId?: string | null;
+  clienteNombre: string;
+  contacto?: ContactoCliente | null;
+  equipo: EquipoReparacion;
+  fallaReportada: string; // lo que el cliente dice que falla
+  fotosRecepcion?: string[]; // URLs en Storage (estado de llegada)
+  recibidoPor?: string | null; // correo del operador que lo recibió
+  diagnostico?: DiagnosticoReparacion | null;
+  cotizacionId?: string | null; // enlace al módulo de cotizaciones
+  reparacion?: { tecnico?: string | null; notas?: string | null } | null;
+  entrega?: { recibeNombre: string; firmaUrl?: string | null } | null;
+  rechazoRazon?: string | null;
+  // Reservado para v2 (sin lógica por ahora): garantía sobre la reparación.
+  garantia?: { hasta?: Date | null; nota?: string | null } | null;
+  // Rastreo: fecha de recepción + sello de cada cambio de etapa. Base de las
+  // alertas de "equipos atorados" en el tablero.
+  fechaRecepcion: Date;
+  fechas?: Partial<Record<EstatusReparacion, Date>>;
+}
+
 // El precio vive en la partida (bloque); las líneas son alcance sin precio.
 export interface Partida {
   titulo: string;

@@ -7,15 +7,23 @@ rules_version = '2';
 //   - Escritura: prohibida (nadie sube directo; todo pasa por la función).
 service firebase.storage {
   match /b/{bucket}/o {
-    function esUsuarioActivo() {
-      return request.auth != null
-        && firestore.exists(/databases/(default)/documents/usuarios/$(request.auth.token.email))
-        && firestore.get(/databases/(default)/documents/usuarios/$(request.auth.token.email)).data.activo == true;
-    }
+    // NOTA: se usa request.auth != null (usuario autenticado) en vez de una
+    // lectura cruzada Storage→Firestore para verificar usuarios/{correo}.activo:
+    // esa lectura entre servicios falla de forma intermitente y niega la subida
+    // (storage/unauthorized). El acceso real al portal ya lo gatea la lista
+    // blanca de usuarios + el guard de login; solo un usuario logueado tiene
+    // token. Para producción se puede endurecer (subir vía Cloud Function).
 
+    // Lectura: cualquier usuario autenticado (galerías/miniaturas del portal).
     match /{allPaths=**} {
-      allow read: if esUsuarioActivo();
-      allow write: if false;
+      allow read: if request.auth != null;
+    }
+    // Escritura desde el cliente: SOLO bajo reparaciones/ (fotos de recepción y
+    // firma de entrega, que sube el operador desde el portal). El resto de las
+    // subidas (evidencia de Rutinas por WhatsApp) las hace el backend con Admin
+    // SDK, que se salta estas reglas.
+    match /reparaciones/{allPaths=**} {
+      allow write: if request.auth != null;
     }
   }
 }

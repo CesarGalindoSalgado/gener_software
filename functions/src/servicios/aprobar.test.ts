@@ -33,11 +33,16 @@ function fakeFirestore(datos: Record<string, Record<string, unknown>>) {
 const DUENO = 'gabriel@gener.com';
 const SECRETARIA = 'paty@gener.com';
 
+// Forma de pago válida (porcentajes que suman 100%): el gate de aprobación la
+// exige antes de sellar el folio.
+const FORMA_PAGO_OK = '70% anticipo / 30% entrega';
+
 const base = () =>
   fakeFirestore({
     [`usuarios/${DUENO}`]: { nombre: 'Gabriel', correo: DUENO, rol: 'dueno', activo: true },
     [`usuarios/${SECRETARIA}`]: { nombre: 'Paty', correo: SECRETARIA, rol: 'secretaria', activo: true },
-    'cotizaciones/cot1': { folio: null, estatus: 'borrador', clienteId: 'c1' },
+    'cotizaciones/cot1': { folio: null, estatus: 'borrador', clienteId: 'c1', versionActualId: 'v1' },
+    'cotizaciones/cot1/versiones/v1': { formaPago: FORMA_PAGO_OK },
   });
 
 // Julio 2026 en Morelos
@@ -61,11 +66,14 @@ describe('aprobarCotizacion', () => {
 
   it('el contador incrementa: dos aprobaciones consumen folios consecutivos', async () => {
     const db = base();
-    (db as never as { docs: Map<string, unknown> }).docs.set('cotizaciones/cot2', {
+    const docs2 = (db as never as { docs: Map<string, unknown> }).docs;
+    docs2.set('cotizaciones/cot2', {
       folio: null,
       estatus: 'borrador',
       clienteId: 'c2',
+      versionActualId: 'v2',
     });
+    docs2.set('cotizaciones/cot2/versiones/v2', { formaPago: FORMA_PAGO_OK });
     const r1 = await aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA });
     const r2 = await aprobarCotizacion(db, { cotizacionId: 'cot2', correoAprobador: DUENO, ahora: AHORA });
     expect(r1.consecutivo + 1).toBe(r2.consecutivo);
@@ -114,7 +122,8 @@ describe('aprobarCotizacion', () => {
     const db = base();
     const docs = (db as never as { docs: Map<string, Record<string, unknown>> }).docs;
     // Simula una revisión: borrador que ya conserva su folio.
-    docs.set('cotizaciones/cot1', { folio: 'GPC-0726-041', estatus: 'borrador', clienteId: 'c1' });
+    docs.set('cotizaciones/cot1', { folio: 'GPC-0726-041', estatus: 'borrador', clienteId: 'c1', versionActualId: 'v1' });
+    docs.set('cotizaciones/cot1/versiones/v1', { formaPago: FORMA_PAGO_OK });
     docs.set('counters/folio_2026', { ultimo: 41 });
     const r = await aprobarCotizacion(db, { cotizacionId: 'cot1', correoAprobador: DUENO, ahora: AHORA });
     expect(r.folio).toBe('GPC-0726-041'); // mismo folio
