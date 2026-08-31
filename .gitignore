@@ -25,3 +25,6 @@ pglite-debug.log
 .idea/
 Thumbs.db
 .DS_Store
+
+# Corpus privado del cliente (PDFs/XLSM de cotizaciones) — NO subir (repo público)
+docs/cotizaciones-cliente/
