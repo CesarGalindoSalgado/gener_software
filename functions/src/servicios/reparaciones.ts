@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { FieldValue, Firestore, Timestamp } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import {
   formatearFolioReparacion,
   nombreContadorReparacion,
@@ -13,6 +15,34 @@ export class ErrorReparacion extends Error {
     super(mensaje);
     this.name = 'ErrorReparacion';
   }
+}
+
+// Sube una imagen (fotos de recepción / firma) a Storage con el Admin SDK, que
+// se salta las reglas y App Check (por eso NO se sube directo desde el portal).
+// Devuelve una URL de descarga estilo Firebase (token persistente).
+export async function subirImagenReparacion(
+  dataBase64: string,
+  mimetype: string,
+  carpeta: string
+): Promise<{ url: string }> {
+  if (!dataBase64) throw new ErrorReparacion('Imagen vacía.', 'imagen');
+  const buffer = Buffer.from(dataBase64, 'base64');
+  const bucket = getStorage().bucket();
+  const ext = mimetype.includes('png') ? 'png' : mimetype.includes('webp') ? 'webp' : 'jpg';
+  const token = randomUUID();
+  // Sanea la carpeta (solo letras, números, / , _ , -).
+  const carpetaLimpia = carpeta.replace(/[^\w/-]/g, '_') || 'recepciones';
+  const storagePath = `reparaciones/${carpetaLimpia}/${Date.now()}-${token.slice(0, 8)}.${ext}`;
+  const file = bucket.file(storagePath);
+  await file.save(buffer, {
+    resumable: false,
+    contentType: mimetype,
+    metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+  });
+  const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+    storagePath
+  )}?alt=media&token=${token}`;
+  return { url };
 }
 
 export interface DatosRecepcion {
@@ -77,6 +107,31 @@ export async function crearOrdenReparacion(
     });
     return { ordenId: ordenRef.id, folio, consecutivo };
   });
+}
+
+// Flujo del chat de IA (modo reparación): recibe el equipo Y crea su cotización
+// enlazada en un solo paso. Marca la cotización con `ordenReparacionId` para
+// distinguirla del módulo de cotizaciones general, y deja la orden en 'cotizado'.
+export async function crearReparacionConCotizacion(
+  db: Firestore,
+  datos: DatosRecepcion,
+  creadoPor: string,
+  ahora: Date
+): Promise<{ ordenId: string; folio: string; cotizacionId: string; versionId: string }> {
+  const orden = await crearOrdenReparacion(db, { ...datos, recibidoPor: creadoPor }, ahora);
+  const { cotizacionId, versionId } = await crearBorrador(db, {
+    clienteNombre: datos.clienteNombre,
+    titulo: `Reparación de ${datos.equipo.descripcion.trim()}`,
+    creadoPor,
+    atencion: datos.contacto?.nombre ?? undefined,
+  });
+  await db.doc(`cotizaciones/${cotizacionId}`).update({ ordenReparacionId: orden.ordenId });
+  await db.doc(`ordenes_reparacion/${orden.ordenId}`).update({
+    cotizacionId,
+    estatus: 'cotizado',
+    'fechas.cotizado': Timestamp.fromDate(ahora),
+  });
+  return { ordenId: orden.ordenId, folio: orden.folio, cotizacionId, versionId };
 }
 
 // Guarda el diagnóstico del técnico. Si la orden estaba 'recibido', avanza a

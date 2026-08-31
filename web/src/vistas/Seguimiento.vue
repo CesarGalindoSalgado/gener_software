@@ -16,7 +16,8 @@ const error = ref('');
 const procesando = ref<string | null>(null);
 
 const off = suscribirSeguimiento((lista) => {
-  items.value = lista;
+  // Las cotizaciones de reparación (taller) se dan seguimiento en Reparaciones.
+  items.value = lista.filter((c) => !c.ordenReparacionId);
   cargando.value = false;
 });
 onUnmounted(off);

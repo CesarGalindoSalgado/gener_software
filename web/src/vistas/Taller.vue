@@ -32,15 +32,17 @@ import {
 const route = useRoute();
 const router = useRouter();
 
-// Regresar a la lista: confirma antes de salir para no perder el trabajo.
+// Regresar a la lista: confirma antes de salir para no perder el trabajo. Si la
+// cotización es de una REPARACIÓN (taller), regresa al submódulo de reparaciones.
 async function volver() {
+  const esReparacion = !!cot.value?.ordenReparacionId;
   if (!(await confirmar({
     titulo: '¿Salir del taller?',
-    mensaje: 'Regresarás a la lista de cotizaciones.',
+    mensaje: esReparacion ? 'Regresarás a las cotizaciones de reparación.' : 'Regresarás a la lista de cotizaciones.',
     confirmar: 'Aceptar',
     cancelar: 'Cancelar',
   }))) return;
-  router.push({ name: 'cotizaciones' });
+  router.push({ name: esReparacion ? 'reparacionesCotizaciones' : 'cotizaciones' });
 }
 const cotizacionId = computed(() => (route.params.id as string | undefined) ?? null);
 const esAdmin = computed(() => ROLES_ADMIN.includes(sesion.usuario?.rol ?? 'trabajador'));

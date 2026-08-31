@@ -291,6 +291,50 @@ export const HERRAMIENTAS: Anthropic.Tool[] = [
   },
 ];
 
+// ---- Modo REPARACIÓN ----
+// Herramienta que registra una reparación (recepción) y crea su cotización
+// enlazada. Solo se expone en el chat de reparaciones (HERRAMIENTAS_REPARACION).
+export const HERRAMIENTA_CREAR_REPARACION: Anthropic.Tool = {
+  name: 'crearReparacion',
+  description:
+    'Registra una nueva reparación (recepción de equipo) y crea su cotización enlazada. Úsala UNA sola vez, cuando ya tengas: el CLIENTE, la DESCRIPCIÓN del equipo y la FALLA reportada. Deja el equipo "recibido" y abre su cotización para que a partir de ahí armes las partidas (con precios del histórico o dictados, nunca inventados). Verifica el cliente con buscarCliente antes de crearla.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      clienteNombre: { type: 'string', description: 'Nombre del cliente (empresa)' },
+      equipoDescripcion: { type: 'string', description: 'Qué equipo es (ej. "Radiador de subestación", "Motor 5 HP")' },
+      marca: { type: 'string', description: 'Marca del equipo (opcional)' },
+      modelo: { type: 'string', description: 'Modelo (opcional)' },
+      numeroSerie: { type: 'string', description: 'Número de serie; "s/n" si no tiene (opcional)' },
+      falla: { type: 'string', description: 'La falla que reporta el cliente' },
+    },
+    required: ['clienteNombre', 'equipoDescripcion', 'falla'],
+  },
+};
+
+// Set de herramientas del chat de reparación: crear la reparación + las de armar
+// la cotización (mismo motor que Portteo). Sin aprobar/clonar/recordatorios.
+const NOMBRES_ARMADO = new Set([
+  'buscarHistorico',
+  'listarPlantillas',
+  'agregarDesdePlantilla',
+  'agregarBloque',
+  'ajustarPrecioBloque',
+  'quitarBloque',
+  'verBloques',
+  'agregarLinea',
+  'editarLinea',
+  'quitarLinea',
+  'listarClientes',
+  'agregarCliente',
+  'buscarCliente',
+  'actualizarDatos',
+]);
+export const HERRAMIENTAS_REPARACION: Anthropic.Tool[] = [
+  HERRAMIENTA_CREAR_REPARACION,
+  ...HERRAMIENTAS.filter((h) => NOMBRES_ARMADO.has(h.name)),
+];
+
 // Contrato que la fase 2 implementa con Firestore. Cada método regresa un
 // resultado serializable que se le devuelve al LLM como tool_result.
 export interface EjecutorHerramientas {
@@ -316,6 +360,8 @@ export interface ContextoEjecucion {
   // Cotización sobre la que trabaja el chat del taller (si aplica)
   cotizacionId?: string;
   versionId?: string;
+  // Orden de reparación en curso (modo reparación): crearReparacion la fija.
+  ordenId?: string;
   // Vista PREVIA (solo lectura, sin guardar) de una cotización existente: el
   // ejecutor la fija con previsualizarCotizacion y el callable la devuelve al
   // front para renderizarla; solo se clona cuando el usuario confirma.

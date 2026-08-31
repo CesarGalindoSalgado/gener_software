@@ -100,6 +100,18 @@ const router = createRouter({
           path: 'reparaciones',
           name: 'reparaciones',
           component: () => import('./vistas/Reparaciones.vue'),
+          meta: { soloOperador: true, modo: 'reparaciones' },
+        },
+        {
+          path: 'reparaciones-cotizaciones',
+          name: 'reparacionesCotizaciones',
+          component: () => import('./vistas/Reparaciones.vue'),
+          meta: { soloOperador: true, modo: 'cotizaciones' },
+        },
+        {
+          path: 'reparaciones-nueva',
+          name: 'reparacionesNueva',
+          component: () => import('./vistas/NuevaReparacion.vue'),
           meta: { soloOperador: true },
         },
         {

@@ -72,6 +72,8 @@ function pasaFecha(c: CotizacionDoc): boolean {
 const visibles = computed(() => {
   const t = busca.value.trim().toLowerCase();
   return items.value.filter((c) => {
+    // Las cotizaciones de reparación (taller) NO se muestran aquí; van en Reparaciones.
+    if (c.ordenReparacionId) return false;
     if (statusSel.value && c.estatus !== statusSel.value) return false;
     if (!pasaFecha(c)) return false;
     if (t) {

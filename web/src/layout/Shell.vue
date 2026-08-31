@@ -57,6 +57,7 @@ const grupos = computed(() => {
       titulo: 'Reparaciones',
       items: [
         { nombre: 'Reparaciones', ruta: 'reparaciones', icono: Hammer, visible: esOperador.value },
+        { nombre: 'Cotizaciones', ruta: 'reparacionesCotizaciones', icono: FileText, visible: esOperador.value },
       ],
     },
     {

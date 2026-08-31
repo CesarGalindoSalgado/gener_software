@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { Hammer, Plus, LoaderCircle, PackageOpen, X, Stethoscope, ArrowRight, FileText, AlertTriangle } from 'lucide-vue-next';
 import {
   suscribirOrdenes,
+  suscribirCotizacionesResumen,
   crearOrdenReparacion,
   guardarDiagnostico,
   cambiarEstatus,
@@ -19,6 +20,16 @@ import {
 import { suscribirClientes, type ClienteDoc } from '../servicios/rutinas';
 
 const router = useRouter();
+const route = useRoute();
+// El mismo componente sirve 3 submódulos según la ruta: 'reparaciones' (recepción
+// + tablero), 'seguimiento' (todas las órdenes) y 'cotizaciones' (las cotizadas).
+const modo = computed(() => (route.meta.modo as string) ?? 'reparaciones');
+const titulo = computed(() =>
+  modo.value === 'seguimiento' ? 'Seguimiento' : modo.value === 'cotizaciones' ? 'Cotizaciones' : 'Reparaciones'
+);
+function money(n: number): string {
+  return '$' + (n ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 const ordenes = ref<OrdenReparacionDoc[]>([]);
 const cargando = ref(true);
@@ -28,10 +39,16 @@ const off1 = suscribirOrdenes((l) => {
 });
 const clientes = ref<ClienteDoc[]>([]);
 const off2 = suscribirClientes((l) => (clientes.value = l));
+// Resumen de cotizaciones (folio + total) para la vista de Cotizaciones.
+const cotizResumen = ref<Record<string, { folio: string | null; total: number }>>({});
+const off3 = suscribirCotizacionesResumen((m) => (cotizResumen.value = m));
 onUnmounted(() => {
   off1();
   off2();
+  off3();
 });
+// Órdenes que ya tienen una cotización creada (para la vista de Cotizaciones).
+const conCotizacion = computed(() => ordenes.value.filter((o) => o.cotizacionId));
 
 const error = ref('');
 const ok = ref('');
@@ -252,19 +269,34 @@ async function avanzar(estatus: EstatusReparacion) {
 <template>
   <div class="p-8 max-w-5xl">
     <p class="eyebrow eyebrow--marca">Taller</p>
-    <h1 class="text-4xl mb-1">Reparaciones</h1>
+    <h1 class="text-4xl mb-1">{{ titulo }}</h1>
     <div class="h-0.5 w-[90px] bg-brand"></div>
-    <p class="text-sm text-muted-ink mt-3">
+    <p v-if="modo === 'reparaciones'" class="text-sm text-muted-ink mt-3">
       Recibe un equipo a reparar y síguelo por etapas. {{ activas.length }} en taller · {{ ordenes.length }} en total.
     </p>
+    <p v-else-if="modo === 'seguimiento'" class="text-sm text-muted-ink mt-3">
+      Todas las solicitudes de reparación con su estado. {{ ordenes.length }} en total.
+    </p>
+    <p v-else class="text-sm text-muted-ink mt-3">
+      Reparaciones que ya tienen cotización. {{ conCotizacion.length }} en total.
+    </p>
 
-    <!-- Vista: Lista (con formulario) o Tablero (kanban) -->
-    <div class="inline-flex mt-5 rounded-md border border-line overflow-hidden text-sm">
-      <button @click="vista = 'lista'" class="px-4 h-9" :class="vista === 'lista' ? 'bg-accent text-white' : 'bg-white text-ink hover:bg-black/5'">Lista</button>
-      <button @click="vista = 'tablero'" class="px-4 h-9 border-l border-line" :class="vista === 'tablero' ? 'bg-accent text-white' : 'bg-white text-ink hover:bg-black/5'">Tablero</button>
+    <!-- ===== Modo REPARACIONES: recepción + tablero ===== -->
+    <template v-if="modo === 'reparaciones'">
+    <!-- Toggle Lista/Tablero + Crear nueva reparación (por chat con IA) -->
+    <div class="flex flex-wrap items-center gap-3 mt-5">
+      <div class="inline-flex rounded-md border border-line overflow-hidden text-sm">
+        <button @click="vista = 'lista'" class="px-4 h-9" :class="vista === 'lista' ? 'bg-accent text-white' : 'bg-white text-ink hover:bg-black/5'">Lista</button>
+        <button @click="vista = 'tablero'" class="px-4 h-9 border-l border-line" :class="vista === 'tablero' ? 'bg-accent text-white' : 'bg-white text-ink hover:bg-black/5'">Tablero</button>
+      </div>
+      <button @click="router.push({ name: 'reparacionesNueva' })" class="h-9 px-4 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent-bright flex items-center gap-2">
+        <Plus :size="16" /> Crear nueva reparación
+      </button>
     </div>
 
-    <div v-if="vista === 'lista'" class="grid lg:grid-cols-[380px_1fr] gap-8 mt-6">
+    <div v-if="vista === 'lista'" class="mt-6">
+      <!-- Formulario de recepción (oculto: la creación ahora es por chat con IA) -->
+      <div v-if="false">
       <!-- Formulario de recepción -->
       <form @submit.prevent="recibir" class="bg-card border border-line rounded-lg shadow-sm p-5 space-y-3 self-start">
         <p class="eyebrow">Recibir equipo</p>
@@ -327,6 +359,7 @@ async function avanzar(estatus: EstatusReparacion) {
         <p v-if="error" class="text-sm text-danger">{{ error }}</p>
         <p v-if="ok" class="text-sm text-emerald-600">{{ ok }}</p>
       </form>
+      </div>
 
       <!-- Listado -->
       <div>
@@ -381,6 +414,71 @@ async function avanzar(estatus: EstatusReparacion) {
             <p v-if="porColumna[c].length === 0" class="text-xs text-muted-ink text-center py-3">—</p>
           </div>
         </div>
+      </div>
+    </div>
+    </template>
+
+    <!-- ===== Modo SEGUIMIENTO: todas las órdenes con su estado ===== -->
+    <div v-else-if="modo === 'seguimiento'" class="bg-card border border-line rounded-lg shadow-sm mt-6 overflow-hidden">
+      <div v-if="cargando" class="p-8 text-center text-muted-ink"><LoaderCircle :size="20" class="animate-spin mx-auto" /></div>
+      <div v-else-if="ordenes.length === 0" class="p-10 text-center text-muted-ink text-sm">Aún no hay solicitudes de reparación.</div>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[720px]">
+          <thead>
+            <tr class="text-left border-b border-line">
+              <th class="px-5 py-2 eyebrow font-normal">Folio</th>
+              <th class="px-5 py-2 eyebrow font-normal">Cliente</th>
+              <th class="px-5 py-2 eyebrow font-normal">Equipo</th>
+              <th class="px-5 py-2 eyebrow font-normal">Estado</th>
+              <th class="px-5 py-2 eyebrow font-normal text-center">Días en etapa</th>
+              <th class="px-5 py-2 eyebrow font-normal">Recibido</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="o in ordenes" :key="o.id" @click="abrir(o)" class="border-b border-line last:border-0 hover:bg-secondary/50 cursor-pointer">
+              <td class="px-5 py-3 font-mono text-xs">{{ o.folio }}</td>
+              <td class="px-5 py-3 font-medium">{{ o.clienteNombre }}</td>
+              <td class="px-5 py-3 text-ink-2 max-w-64 truncate">{{ o.equipo?.descripcion }}</td>
+              <td class="px-5 py-3"><span class="text-xs px-2 py-0.5 rounded-full" :class="COLOR_ESTATUS[o.estatus]">{{ ETIQUETA_ESTATUS[o.estatus] }}</span></td>
+              <td class="px-5 py-3 text-center"><span :class="atorado(o) ? 'text-amber-600 font-semibold' : 'text-muted-ink'">{{ diasEnEtapa(o) }}</span></td>
+              <td class="px-5 py-3 text-muted-ink text-xs">{{ fecha(o) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== Modo COTIZACIONES: solo las órdenes con cotización ===== -->
+    <div v-else class="bg-card border border-line rounded-lg shadow-sm mt-6 overflow-hidden">
+      <div v-if="cargando" class="p-8 text-center text-muted-ink"><LoaderCircle :size="20" class="animate-spin mx-auto" /></div>
+      <div v-else-if="conCotizacion.length === 0" class="p-10 text-center text-muted-ink text-sm">Aún no hay reparaciones cotizadas.</div>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[760px]">
+          <thead>
+            <tr class="text-left border-b border-line">
+              <th class="px-5 py-2 eyebrow font-normal">Orden</th>
+              <th class="px-5 py-2 eyebrow font-normal">Cliente</th>
+              <th class="px-5 py-2 eyebrow font-normal">Equipo</th>
+              <th class="px-5 py-2 eyebrow font-normal">Cotización</th>
+              <th class="px-5 py-2 eyebrow font-normal">Importe</th>
+              <th class="px-5 py-2 eyebrow font-normal">Estado</th>
+              <th class="px-5 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="o in conCotizacion" :key="o.id" @click="abrir(o)" class="border-b border-line last:border-0 hover:bg-secondary/50 cursor-pointer">
+              <td class="px-5 py-3 font-mono text-xs">{{ o.folio }}</td>
+              <td class="px-5 py-3 font-medium">{{ o.clienteNombre }}</td>
+              <td class="px-5 py-3 text-ink-2 max-w-56 truncate">{{ o.equipo?.descripcion }}</td>
+              <td class="px-5 py-3 font-mono text-xs">{{ cotizResumen[o.cotizacionId || '']?.folio ?? 'borrador' }}</td>
+              <td class="px-5 py-3">{{ money(cotizResumen[o.cotizacionId || '']?.total ?? 0) }}</td>
+              <td class="px-5 py-3"><span class="text-xs px-2 py-0.5 rounded-full" :class="COLOR_ESTATUS[o.estatus]">{{ ETIQUETA_ESTATUS[o.estatus] }}</span></td>
+              <td class="px-5 py-3">
+                <button @click.stop="router.push({ name: 'taller', params: { id: String(o.cotizacionId) } })" class="text-accent hover:underline text-xs flex items-center gap-1"><FileText :size="13" /> Ver</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 

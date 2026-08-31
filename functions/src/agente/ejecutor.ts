@@ -24,6 +24,7 @@ import {
   registrarCliente,
 } from '../servicios/cotizaciones';
 import { listarRecordatoriosDe, marcarRecordatorio } from '../servicios/recordatorios';
+import { crearReparacionConCotizacion } from '../servicios/reparaciones';
 import { ContextoEjecucion, EjecutorHerramientas } from './herramientas';
 
 // Implementación real (fase 2) del contrato de herramientas: conecta el LLM
@@ -291,6 +292,33 @@ export function crearEjecutor(db: Firestore): EjecutorHerramientas {
           return JSON.stringify(
             res.length ? res : { aviso: 'No hay cotizaciones enviadas sin cerrar.' }
           );
+        }
+
+        case 'crearReparacion': {
+          const res = await crearReparacionConCotizacion(
+            db,
+            {
+              clienteNombre: String(input.clienteNombre ?? ''),
+              equipo: {
+                descripcion: String(input.equipoDescripcion ?? ''),
+                marca: input.marca ? String(input.marca) : null,
+                modelo: input.modelo ? String(input.modelo) : null,
+                numeroSerie: input.numeroSerie ? String(input.numeroSerie) : null,
+              },
+              fallaReportada: String(input.falla ?? ''),
+            },
+            ctx.correo,
+            new Date()
+          );
+          // Deja la orden y su cotización como las "en curso": las siguientes
+          // herramientas (agregarBloque, etc.) ya operan sobre esa cotización.
+          ctx.ordenId = res.ordenId;
+          ctx.cotizacionId = res.cotizacionId;
+          ctx.versionId = res.versionId;
+          return JSON.stringify({
+            folio: res.folio,
+            aviso: `Reparación ${res.folio} registrada y su cotización creada (Rev. A, sin folio). Ahora arma las partidas de la cotización con precios del histórico o dictados (nunca inventados). Dile al usuario el folio ${res.folio}.`,
+          });
         }
 
         default:

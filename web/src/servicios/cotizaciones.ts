@@ -28,6 +28,9 @@ export interface CotizacionDoc {
   iva?: number;
   fechaCreacion: Timestamp | null;
   fechaEnvio?: Timestamp | null;
+  // Si viene, la cotización es de una REPARACIÓN (taller): se muestra solo en el
+  // módulo de Reparaciones, no en el de Cotizaciones general.
+  ordenReparacionId?: string | null;
 }
 
 export interface VersionDoc {

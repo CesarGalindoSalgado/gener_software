@@ -1,17 +1,33 @@
 import { collection, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
-import { db, functions, storage } from '../firebase';
+import { db, functions } from '../firebase';
 
-// Sube imágenes al Storage bajo reparaciones/<carpeta>/ y devuelve sus URLs.
-// La regla de Storage solo permite escribir bajo reparaciones/ a usuarios activos.
+const cbSubirFoto = httpsCallable<{ dataBase64: string; mimetype: string; carpeta: string }, { url: string }>(
+  functions,
+  'subirFotoReparacionCallable'
+);
+
+function leerBase64(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+    r.onload = () => {
+      const s = String(r.result);
+      resolve(s.slice(s.indexOf(',') + 1)); // quita el prefijo "data:...;base64,"
+    };
+    r.readAsDataURL(f);
+  });
+}
+
+// Sube imágenes por Cloud Function (Admin SDK) y devuelve sus URLs de descarga.
+// Se evita subir DIRECTO a Storage desde el navegador: en proyectos nuevos App
+// Check y las reglas cruzadas bloquean esa subida (storage/unauthorized).
 export async function subirImagenes(files: File[], carpeta: string): Promise<string[]> {
   const urls: string[] = [];
   for (const f of files) {
-    const nombre = `${crypto.randomUUID()}-${f.name.replace(/[^\w.\-]/g, '_')}`;
-    const r = storageRef(storage, `reparaciones/${carpeta}/${nombre}`);
-    await uploadBytes(r, f);
-    urls.push(await getDownloadURL(r));
+    const dataBase64 = await leerBase64(f);
+    const { url } = await cbSubirFoto({ dataBase64, mimetype: f.type || 'image/jpeg', carpeta }).then((r) => r.data);
+    urls.push(url);
   }
   return urls;
 }
@@ -101,6 +117,21 @@ export const SIGUIENTES: Record<EstatusReparacion, EstatusReparacion[]> = {
   devuelto: [],
 };
 
+// Resumen de las cotizaciones (id -> folio + total) para la vista de
+// "Cotizaciones de reparación". La cotización vive en la colección `cotizaciones`.
+export function suscribirCotizacionesResumen(
+  cb: (mapa: Record<string, { folio: string | null; total: number }>) => void
+): Unsubscribe {
+  return onSnapshot(collection(db, 'cotizaciones'), (snap) => {
+    const m: Record<string, { folio: string | null; total: number }> = {};
+    snap.docs.forEach((d) => {
+      const x = d.data();
+      m[d.id] = { folio: (x.folio as string) ?? null, total: Number(x.total ?? 0) };
+    });
+    cb(m);
+  });
+}
+
 // ---------- Suscripción en vivo ----------
 export function suscribirOrdenes(cb: (items: OrdenReparacionDoc[]) => void): Unsubscribe {
   return onSnapshot(collection(db, 'ordenes_reparacion'), (snap) => {
@@ -155,3 +186,16 @@ const cbEntregar = httpsCallable<
 >(functions, 'entregarOrdenReparacionCallable');
 export const entregarOrden = (d: { ordenId: string; recibeNombre: string; firmaUrl?: string | null }) =>
   cbEntregar(d).then((r) => r.data);
+
+// Chat de "nueva reparación" (Portteo en modo reparación). Devuelve el texto de
+// Portteo y, una vez que reúne los datos, el id de la orden y de su cotización.
+const cbPortteoReparacion = httpsCallable<
+  { historial: { rol: string; texto: string }[]; mensaje: string; ordenId?: string | null; cotizacionId?: string | null },
+  { texto: string; ordenId: string | null; cotizacionId: string | null }
+>(functions, 'portteoReparacion');
+export const enviarMensajeReparacion = (d: {
+  historial: { rol: string; texto: string }[];
+  mensaje: string;
+  ordenId?: string | null;
+  cotizacionId?: string | null;
+}) => cbPortteoReparacion(d).then((r) => r.data);

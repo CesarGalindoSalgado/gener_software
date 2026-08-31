@@ -8,7 +8,7 @@ import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { urlAPdf } from './servicios/render';
 import { estadoConfigTelegram, guardarConfigTelegram, registrarWebhookTelegram, tokenTelegram } from './servicios/telegramConfig';
 import { crearEjecutor } from './agente/ejecutor';
-import { HERRAMIENTAS } from './agente/herramientas';
+import { HERRAMIENTAS, HERRAMIENTAS_REPARACION } from './agente/herramientas';
 import { clasificarIntencionRutina, conversarConPortteoGemini, interpretarMensajeAlta } from './agente/portteoGemini';
 import { normalizarWebhookWhatsapp } from './canal/whatsapp';
 import { BASE_FUNCIONES, HOST_WEB } from './dominio/entorno';
@@ -87,6 +87,7 @@ import {
   cambiarEstatusReparacion,
   crearCotizacionDesdeOrden,
   entregarOrden,
+  subirImagenReparacion,
 } from './servicios/reparaciones';
 import { EstatusReparacion } from './dominio/tipos';
 import { MensajeEntrante } from './canal/tipos';
@@ -280,6 +281,100 @@ export const portteoNuevo = onCall(
     }
     const preview = (contexto as { preview?: unknown }).preview ?? null;
     return { texto: respuesta.texto, cotizacionId, preview };
+  }
+);
+
+// ---- Chat de Reparación (Portteo en MODO REPARACIÓN) ----
+const SYSTEM_REPARACION = [
+  'Eres Portteo en MODO REPARACIÓN, asistente de G-ener (taller de reparación de equipos).',
+  'Ayudas a RECIBIR un equipo a reparar y a COTIZAR su reparación.',
+  '',
+  'Flujo:',
+  '1) Saluda breve y reúne los datos de la reparación: CLIENTE (empresa), EQUIPO (descripción; y si los da: marca, modelo, número de serie) y la FALLA que reporta el cliente. Puede darlos de golpe o uno por uno. NO sigas sin cliente, equipo y falla.',
+  '2) Verifica el cliente con buscarCliente: si un candidato trae exacta=true úsalo directo (aunque difiera en mayúsculas/acentos); si solo hay parecidos, pregunta cuál; si no hay ninguno, ofrece agregarlo y solo créalo con agregarCliente tras su confirmación. NUNCA corrijas el nombre por tu cuenta.',
+  '3) Cuando tengas cliente + equipo + falla, llama crearReparacion UNA sola vez. Eso registra la reparación (folio OR-…) y crea su cotización. A partir de ahí, ARMA la cotización.',
+  '4) Arma las partidas de la cotización de la reparación:',
+  '- NUNCA inventes precios: vienen del histórico (buscarHistorico) o dictados por el usuario. Si no hay dato, pregunta.',
+  '- El IVA siempre es 16%.',
+  '- PLANTILLAS: si el usuario pide un servicio por nombre, intenta agregarDesdePlantilla (trae sus líneas y su precioSugerido). Si tiene precioSugerido, úsalo sin preguntar; si tiene subtipos, pregunta cuál y vuelve a llamar con "subtipo". Si no existe la plantilla, es concepto libre (agregarBloque) y ahí sí pide el precio.',
+  '- CANTIDADES: si el usuario menciona unidades, van en "cantidad"; el "importe" es el precio UNITARIO (total = importe × cantidad). Si es ambiguo (por unidad o total), pregunta antes de agregar.',
+  '- Puedes ver/editar/quitar renglones (verBloques, agregarLinea, editarLinea, quitarLinea) y ajustar forma de pago, tiempo de entrega o notas con actualizarDatos.',
+  'La cotización se ve a la derecha y se actualiza al instante; no repitas todo el documento en el chat, solo confirma qué cambiaste y los totales.',
+  'Respondes en español, breve y directo. Aquí NO se aprueba la cotización ni se asigna su folio (eso es aparte).',
+].join('\n');
+
+// Chat de reparación: como el intake, pero en modo reparación. Cuando reúne los
+// datos crea la orden (folio OR-…) y su cotización enlazada; el front muestra la
+// cotización a la derecha y la va armando. El historial se persiste en el chat de
+// la cotización una vez creada.
+export const portteoReparacion = onCall(
+  { region: REGION, secrets: [GEMINI_API_KEY], timeoutSeconds: 300, memory: '512MiB' },
+  async (req) => {
+    const usuario = await usuarioDesdeAuth(req);
+    exigirRol(usuario, ROLES_OPERADOR);
+
+    const mensaje = String(req.data?.mensaje ?? '').trim();
+    if (!mensaje) throw new HttpsError('invalid-argument', 'Falta el mensaje.');
+    const historialIn: { rol: string; texto: string }[] = Array.isArray(req.data?.historial)
+      ? req.data.historial.map((m: { rol?: string; texto?: string }) => ({
+          rol: m?.rol === 'usuario' ? 'usuario' : 'portteo',
+          texto: String(m?.texto ?? ''),
+        }))
+      : [];
+
+    const historial: Anthropic.MessageParam[] = [
+      ...historialIn.map((m) => ({
+        role: m.rol === 'usuario' ? ('user' as const) : ('assistant' as const),
+        content: m.texto,
+      })),
+      { role: 'user' as const, content: mensaje },
+    ];
+
+    // Si el front ya tiene la orden/cotización en curso, las pasa para seguir
+    // armando; si no, crearReparacion las fijará en este turno.
+    const contexto = {
+      correo: usuario.correo,
+      rol: usuario.rol,
+      ordenId: req.data?.ordenId ? String(req.data.ordenId) : undefined,
+      cotizacionId: req.data?.cotizacionId ? String(req.data.cotizacionId) : undefined,
+      versionId: req.data?.versionId ? String(req.data.versionId) : undefined,
+    };
+    // Si viene la cotización pero no la versión (turnos posteriores), la
+    // resolvemos del doc para que las herramientas de armado ya operen.
+    if (contexto.cotizacionId && !contexto.versionId) {
+      const snap = await db.doc(`cotizaciones/${contexto.cotizacionId}`).get();
+      contexto.versionId = (snap.get('versionActualId') as string | undefined) ?? undefined;
+    }
+
+    let respuesta: { texto: string };
+    try {
+      respuesta = await conversarConPortteoGemini({
+        apiKey: GEMINI_API_KEY.value(),
+        ejecutor: crearEjecutor(db),
+        contexto,
+        historial,
+        sistema: SYSTEM_REPARACION,
+        herramientas: HERRAMIENTAS_REPARACION,
+      });
+    } catch (e) {
+      logger.error('portteoReparacion falló:', e);
+      respuesta = { texto: 'Ando saturado en este momento. Dame unos segundos y vuelve a intentar, por favor. 🙏' };
+    }
+
+    const cotizacionId = contexto.cotizacionId ?? null;
+    // Si ya se creó la cotización en este turno, volcamos el chat a su historial.
+    if (cotizacionId && !req.data?.cotizacionId) {
+      for (const m of historialIn) {
+        await guardarMensajeChat(db, cotizacionId, { rol: m.rol === 'usuario' ? 'usuario' : 'portteo', texto: m.texto });
+      }
+      await guardarMensajeChat(db, cotizacionId, { rol: 'usuario', texto: mensaje, correo: usuario.correo });
+      await guardarMensajeChat(db, cotizacionId, { rol: 'portteo', texto: respuesta.texto });
+    } else if (cotizacionId) {
+      // Cotización ya existente: solo persiste este turno.
+      await guardarMensajeChat(db, cotizacionId, { rol: 'usuario', texto: mensaje, correo: usuario.correo });
+      await guardarMensajeChat(db, cotizacionId, { rol: 'portteo', texto: respuesta.texto });
+    }
+    return { texto: respuesta.texto, ordenId: contexto.ordenId ?? null, cotizacionId };
   }
 );
 
@@ -768,6 +863,21 @@ export const crearCotizacionDesdeReparacionCallable = onCall({ region: REGION },
     return await crearCotizacionDesdeOrden(db, String(req.data?.ordenId ?? ''), usuario.correo, new Date());
   } catch (e) {
     throw new HttpsError('failed-precondition', e instanceof Error ? e.message : 'No se pudo crear la cotización.');
+  }
+});
+
+// Sube una foto (recepción / firma) al Storage vía Admin SDK. El portal manda la
+// imagen en base64; se evita subir directo desde el navegador (App Check/reglas).
+export const subirFotoReparacionCallable = onCall({ region: REGION, memory: '512MiB' }, async (req) => {
+  const usuario = await usuarioDesdeAuth(req);
+  exigirRol(usuario, ROLES_OPERADOR);
+  const d = (req.data ?? {}) as Record<string, any>;
+  const dataBase64 = String(d.dataBase64 ?? '');
+  if (!dataBase64) throw new HttpsError('invalid-argument', 'Falta la imagen.');
+  try {
+    return await subirImagenReparacion(dataBase64, String(d.mimetype ?? 'image/jpeg'), String(d.carpeta ?? 'recepciones'));
+  } catch (e) {
+    throw new HttpsError('internal', e instanceof Error ? e.message : 'No se pudo subir la imagen.');
   }
 });
 
