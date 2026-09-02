@@ -56,8 +56,10 @@ const grupos = computed(() => {
     {
       titulo: 'Reparaciones',
       items: [
-        { nombre: 'Reparaciones', ruta: 'reparaciones', icono: Hammer, visible: esOperador.value },
-        { nombre: 'Cotizaciones', ruta: 'reparacionesCotizaciones', icono: FileText, visible: esOperador.value },
+        // Módulo OCULTO temporalmente (a petición). Para reactivarlo, vuelve a poner
+        // visible: esOperador.value en ambos items. El código del módulo queda intacto.
+        { nombre: 'Reparaciones', ruta: 'reparaciones', icono: Hammer, visible: false },
+        { nombre: 'Cotizaciones', ruta: 'reparacionesCotizaciones', icono: FileText, visible: false },
       ],
     },
     {
