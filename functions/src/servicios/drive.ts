@@ -16,6 +16,9 @@ export interface ConfigDrive {
   refreshToken?: string;
   folderId?: string;
   folderNombre?: string;
+  // Caché de ids de subcarpetas ya creadas, por ruta (ej. "2026/09 - Septiembre").
+  // Evita re-buscarlas/recrearlas en cada guardado.
+  carpetas?: Record<string, string>;
 }
 
 export async function leerConfigDrive(db: Firestore): Promise<ConfigDrive> {
@@ -113,15 +116,75 @@ export async function asegurarCarpeta(db: Firestore, cfg: ConfigDrive): Promise<
   return j.id;
 }
 
-// Sube un archivo (PDF u otro) a la carpeta de Drive. Devuelve id y enlace.
+// Busca una subcarpeta por nombre dentro de un padre (solo entre las que la app
+// creó — scope drive.file). Devuelve su id o null si no existe.
+async function buscarCarpetaHija(token: string, parentId: string, nombre: string): Promise<string | null> {
+  const q =
+    `name = '${nombre.replace(/'/g, "\\'")}' and '${parentId}' in parents and ` +
+    `mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const r = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`,
+    { headers: { authorization: `Bearer ${token}` } }
+  );
+  const j = (await r.json()) as { files?: { id?: string }[] };
+  return j.files?.[0]?.id ?? null;
+}
+
+// Crea una subcarpeta dentro de un padre y devuelve su id.
+async function crearCarpetaHija(token: string, parentId: string, nombre: string): Promise<string> {
+  const r = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ name: nombre, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
+  });
+  const j = (await r.json()) as { id?: string };
+  if (!j.id) throw new Error(`No se pudo crear la subcarpeta "${nombre}" en Drive.`);
+  return j.id;
+}
+
+// Asegura una ruta de subcarpetas anidadas (ej. ["2026", "09 - Septiembre"]) bajo la
+// carpeta raíz, creándolas si faltan. Cachea los ids en config/drive para no repetir
+// búsquedas. Devuelve el id de la subcarpeta más profunda (donde va el archivo).
+async function asegurarSubcarpetas(
+  db: Firestore,
+  cfg: ConfigDrive,
+  token: string,
+  rootId: string,
+  segmentos: string[]
+): Promise<string> {
+  const cache: Record<string, string> = { ...(cfg.carpetas ?? {}) };
+  let parentId = rootId;
+  let ruta = '';
+  let cambiado = false;
+  for (const seg of segmentos) {
+    ruta = ruta ? `${ruta}/${seg}` : seg;
+    if (cache[ruta]) {
+      parentId = cache[ruta];
+      continue;
+    }
+    let id = await buscarCarpetaHija(token, parentId, seg);
+    if (!id) id = await crearCarpetaHija(token, parentId, seg);
+    cache[ruta] = id;
+    parentId = id;
+    cambiado = true;
+  }
+  if (cambiado) await db.doc('config/drive').set({ carpetas: cache }, { merge: true });
+  return parentId;
+}
+
+// Sube un archivo (PDF u otro) a la carpeta de Drive. Si se pasan `subcarpetas`, lo
+// guarda dentro de esa ruta anidada (ej. año/mes), creándola si hace falta. Devuelve id y enlace.
 export async function subirADrive(
   db: Firestore,
-  params: { nombre: string; contenido: Buffer; mimeType: string }
+  params: { nombre: string; contenido: Buffer; mimeType: string; subcarpetas?: string[] }
 ): Promise<{ id: string; link: string }> {
   const cfg = await leerConfigDrive(db);
   if (!cfg.refreshToken) throw new Error('Drive no está conectado. Ve a Configuración → Drive.');
-  const folderId = await asegurarCarpeta(db, cfg);
+  const rootId = await asegurarCarpeta(db, cfg);
   const token = await accessToken(cfg);
+  const folderId = params.subcarpetas?.length
+    ? await asegurarSubcarpetas(db, cfg, token, rootId, params.subcarpetas)
+    : rootId;
 
   const meta = { name: params.nombre, parents: [folderId] };
   const boundary = `gener-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;

@@ -1248,6 +1248,23 @@ export const registrarWebhookTelegramCallable = onCall(
 // Al APROBAR una cotización (se le asigna folio), renderizamos su PDF y lo subimos
 // a la carpeta de Drive. Idempotente: la marca `driveGuardado` evita repetir. Si
 // Drive no está conectado, no hace nada (no rompe la aprobación).
+// Deriva la ruta de subcarpetas [año, "MM - Mes"] a partir del folio GPC-MMYY-NNN,
+// para organizar los PDFs en Drive por año y mes. Si el folio no parsea, usa la fecha actual.
+const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+// Ruta de subcarpetas [año, "MM - Mes"] para organizar los PDFs en Drive por año y mes.
+function subcarpetasDe(anio: number, mes: number): string[] {
+  const mm = String(mes).padStart(2, '0');
+  const nombreMes = mes >= 1 && mes <= 12 ? MESES_ES[mes - 1] : mm;
+  return [String(anio), `${mm} - ${nombreMes}`];
+}
+// Cotizaciones: año/mes tomados del folio GPC-MMYY-NNN (fallback: fecha actual).
+function subcarpetasPorFolio(folio: string): string[] {
+  const m = /-(\d{2})(\d{2})-/.exec(folio); // captura MM y YY del folio
+  if (m) return subcarpetasDe(2000 + parseInt(m[2], 10), parseInt(m[1], 10));
+  const hoy = new Date();
+  return subcarpetasDe(hoy.getFullYear(), hoy.getMonth() + 1);
+}
+
 export const guardarCotizacionDrive = onDocumentUpdated(
   { region: REGION, document: 'cotizaciones/{id}', secrets: ['WHATSAPP_WEBHOOK_SECRET'], memory: '1GiB', timeoutSeconds: 120 },
   async (event) => {
@@ -1265,7 +1282,7 @@ export const guardarCotizacionDrive = onDocumentUpdated(
       const url = `${BASE_FUNCIONES}/verCotizacion?token=${firmarEnlace(secreto, cotizacionId)}`;
       const pdf = await urlAPdf(url);
       const nombre = `Cotizacion ${despues.folio}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
-      await subirADrive(db, { nombre, contenido: pdf, mimeType: 'application/pdf' });
+      await subirADrive(db, { nombre, contenido: pdf, mimeType: 'application/pdf', subcarpetas: subcarpetasPorFolio(String(despues.folio)) });
       await db.doc(`cotizaciones/${cotizacionId}`).set({ driveGuardado: true }, { merge: true });
       logger.info(`Cotización ${despues.folio} guardada en Drive.`);
     } catch (e) {
@@ -1292,7 +1309,8 @@ export const guardarReporteDrive = onDocumentUpdated(
       const pdf = await urlAPdf(url);
       const folio = (despues.folio as string) || ejecucionId;
       const nombre = `Reporte ${folio}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
-      await subirADrive(db, { nombre, contenido: pdf, mimeType: 'application/pdf' });
+      const hoy = new Date();
+      await subirADrive(db, { nombre, contenido: pdf, mimeType: 'application/pdf', subcarpetas: subcarpetasDe(hoy.getFullYear(), hoy.getMonth() + 1) });
       await db.doc(`rutinas_ejecucion/${ejecucionId}`).set({ reporteDriveGuardado: true }, { merge: true });
       logger.info(`Reporte ${folio} guardado en Drive.`);
     } catch (e) {
