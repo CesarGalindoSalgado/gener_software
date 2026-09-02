@@ -9,7 +9,7 @@ import { urlAPdf } from './servicios/render';
 import { estadoConfigTelegram, guardarConfigTelegram, registrarWebhookTelegram, tokenTelegram } from './servicios/telegramConfig';
 import { crearEjecutor } from './agente/ejecutor';
 import { HERRAMIENTAS, HERRAMIENTAS_REPARACION } from './agente/herramientas';
-import { clasificarIntencionRutina, conversarConPortteoGemini, interpretarMensajeAlta } from './agente/portteoGemini';
+import { clasificarIntencionRutina, conversarConPortteoGemini, interpretarMensajeAlta, revisarOrtografiaPlantilla } from './agente/portteoGemini';
 import { normalizarWebhookWhatsapp } from './canal/whatsapp';
 import { BASE_FUNCIONES, HOST_WEB } from './dominio/entorno';
 import { ROLES_ADMIN, ROLES_OPERADOR, Rol, Usuario } from './dominio/tipos';
@@ -562,6 +562,28 @@ export const crearPlantillaCallable = onCall({ region: REGION }, async (req) => 
     throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'No se pudo crear la plantilla.');
   }
 });
+
+// Revisa la ortografía de una plantilla ANTES de guardarla (nombre, líneas y nombres
+// de subtipo). Devuelve la versión corregida + un resumen de cambios para que el
+// usuario confirme en un card y decida si la crea. Nunca toca precios ni números.
+export const revisarOrtografiaPlantillaCallable = onCall(
+  { region: REGION, secrets: [GEMINI_API_KEY], timeoutSeconds: 60, memory: '512MiB' },
+  async (req) => {
+    const usuario = await usuarioDesdeAuth(req);
+    exigirRol(usuario, ROLES_ADMIN);
+    const nombre = String(req.data?.nombre ?? '').trim();
+    const lineas = Array.isArray(req.data?.lineas) ? req.data.lineas.map((l: unknown) => String(l ?? '')) : [];
+    const subtipos = Array.isArray(req.data?.subtipos) ? req.data.subtipos.map((s: unknown) => String(s ?? '')) : [];
+    if (!nombre && lineas.length === 0 && subtipos.length === 0) {
+      throw new HttpsError('invalid-argument', 'No hay texto para revisar.');
+    }
+    try {
+      return await revisarOrtografiaPlantilla(GEMINI_API_KEY.value(), { nombre, lineas, subtipos });
+    } catch (e) {
+      throw new HttpsError('internal', e instanceof Error ? e.message : 'No se pudo revisar la ortografía.');
+    }
+  }
+);
 
 export const actualizarPlantillaCallable = onCall({ region: REGION }, async (req) => {
   const usuario = await usuarioDesdeAuth(req);

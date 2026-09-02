@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onUnmounted, reactive, ref } from 'vue';
-import { LayoutTemplate, Plus, LoaderCircle, Pencil, X, Check, Trash2 } from 'lucide-vue-next';
+import { LayoutTemplate, Plus, LoaderCircle, Pencil, X, Check, Trash2, Sparkles, ArrowLeft } from 'lucide-vue-next';
 import { formatearMoneda } from '../dominio/totales';
 import {
   actualizarPlantilla,
   crearPlantilla,
+  revisarOrtografiaPlantilla,
   suscribirPlantillas,
   type PlantillaDoc,
 } from '../servicios/plantillas';
@@ -99,9 +100,12 @@ async function alternarActiva(p: PlantillaDoc) {
   }
 }
 
-// --- Alta (en modal) ---
+// --- Alta (en modal, 2 pasos: 'form' → revisión ortográfica con IA → crear) ---
 const creando = ref(false);
 const modalAbierto = ref(false);
+const paso = ref<'form' | 'revision'>('form');
+const revisando = ref(false);
+const cambios = ref<string[]>([]);
 const nuevo = reactive<FormaPlantilla>({ nombre: '', precio: '', tieneSubtipos: false, subtipos: [], lineasTexto: '' });
 
 function abrirModal() {
@@ -111,13 +115,21 @@ function abrirModal() {
   nuevo.subtipos = [];
   nuevo.lineasTexto = '';
   error.value = '';
+  paso.value = 'form';
+  cambios.value = [];
   modalAbierto.value = true;
 }
 function cerrarModal() {
-  if (creando.value) return;
+  if (creando.value || revisando.value) return;
   modalAbierto.value = false;
 }
-async function crear() {
+
+// Líneas de alcance del formulario, ya limpias (una por renglón).
+const lineasNuevo = () => nuevo.lineasTexto.split('\n').map((l) => l.trim()).filter(Boolean);
+
+// Paso 1 → 2: manda el texto a la IA para revisar ortografía, aplica las correcciones
+// al formulario y muestra el card con el resumen de cambios para que el usuario confirme.
+async function revisar() {
   if (!nuevo.nombre.trim()) {
     error.value = 'El nombre es obligatorio.';
     return;
@@ -126,13 +138,48 @@ async function crear() {
     error.value = 'Agrega al menos un subtipo con su nombre y precio.';
     return;
   }
+  revisando.value = true;
+  error.value = '';
+  try {
+    const subtiposConNombre = nuevo.subtipos.filter((s) => s.nombre.trim());
+    const r = await revisarOrtografiaPlantilla({
+      nombre: nuevo.nombre.trim(),
+      lineas: lineasNuevo(),
+      subtipos: subtiposConNombre.map((s) => s.nombre.trim()),
+    });
+    // Aplica las correcciones de vuelta al formulario (para que "Aceptar" cree la versión corregida).
+    nuevo.nombre = r.nombre;
+    nuevo.lineasTexto = r.lineas.join('\n');
+    let k = 0;
+    for (const s of nuevo.subtipos) {
+      if (s.nombre.trim()) {
+        s.nombre = r.subtipos[k] ?? s.nombre;
+        k++;
+      }
+    }
+    cambios.value = r.cambios;
+    paso.value = 'revision';
+  } catch (e: unknown) {
+    error.value = (e as { message?: string })?.message ?? 'No se pudo revisar la ortografía.';
+  } finally {
+    revisando.value = false;
+  }
+}
+
+function volverAEditar() {
+  paso.value = 'form';
+  error.value = '';
+}
+
+// Paso 2 → guardar: crea la plantilla ya con el texto corregido y aceptado.
+async function crear() {
   creando.value = true;
   error.value = '';
   try {
     await crearPlantilla({
       nombre: nuevo.nombre.trim(),
       ...payloadPrecio(nuevo),
-      lineas: nuevo.lineasTexto.split('\n').map((l) => l.trim()).filter(Boolean),
+      lineas: lineasNuevo(),
     });
     modalAbierto.value = false;
   } catch (e: unknown) {
@@ -278,12 +325,13 @@ async function crear() {
         <div class="flex items-start justify-between p-6 border-b border-line">
           <div>
             <p class="eyebrow eyebrow--marca">Administración</p>
-            <h2 class="text-2xl leading-tight">Nueva plantilla</h2>
+            <h2 class="text-2xl leading-tight">{{ paso === 'form' ? 'Nueva plantilla' : 'Revisa y confirma' }}</h2>
           </div>
           <button @click="cerrarModal" class="text-muted-ink hover:text-ink"><X :size="20" /></button>
         </div>
 
-        <div class="overflow-auto p-6 space-y-3">
+        <!-- Paso 1: formulario -->
+        <div v-if="paso === 'form'" class="overflow-auto p-6 space-y-3">
           <div>
             <label class="eyebrow block mb-1">Nombre</label>
             <input v-model="nuevo.nombre" placeholder="Ej. Mantenimiento preventivo" class="w-full h-10 px-3 rounded-md border border-line bg-white text-sm" />
@@ -317,16 +365,68 @@ async function crear() {
           <p v-if="error" class="text-sm text-danger">{{ error }}</p>
         </div>
 
-        <div class="flex justify-end gap-2 p-4 border-t border-line">
-          <button @click="cerrarModal" :disabled="creando" class="h-10 px-4 rounded-md border border-line-strong text-sm text-ink-2 hover:border-accent disabled:opacity-50">
+        <!-- Paso 2: revisión (card de cómo quedará + cambios de la IA) -->
+        <div v-else class="overflow-auto p-6 space-y-4">
+          <!-- Resumen de correcciones -->
+          <div v-if="cambios.length" class="rounded-md border border-amber-200 bg-amber-50 p-3">
+            <p class="text-xs font-medium text-amber-800 flex items-center gap-1.5 mb-1.5"><Sparkles :size="14" /> La IA corrigió {{ cambios.length }} detalle{{ cambios.length === 1 ? '' : 's' }} de ortografía</p>
+            <ul class="text-xs text-amber-900/90 list-disc pl-5 space-y-0.5">
+              <li v-for="(c, i) in cambios" :key="i">{{ c }}</li>
+            </ul>
+          </div>
+          <div v-else class="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+            <p class="text-xs text-emerald-800 flex items-center gap-1.5"><Check :size="14" /> Sin correcciones: el texto ya estaba bien escrito.</p>
+          </div>
+
+          <!-- Card de cómo quedará la plantilla -->
+          <div class="bg-card border border-line rounded-lg shadow-sm p-5">
+            <div class="flex items-start justify-between gap-3">
+              <h3 class="text-xl">{{ nuevo.nombre }}</h3>
+              <div class="text-right shrink-0">
+                <template v-if="nuevo.tieneSubtipos">
+                  <div class="text-sm text-ink-2 space-y-0.5">
+                    <div v-for="(s, i) in nuevo.subtipos.filter((x) => x.nombre.trim())" :key="i" class="whitespace-nowrap">
+                      <span class="text-muted-ink">{{ s.nombre }}:</span> <span class="font-medium text-brand-text">{{ formatearMoneda(Number(s.precio) || 0) }}</span>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="font-serif text-2xl text-brand-text">{{ nuevo.precio === '' ? 'sin precio' : formatearMoneda(Number(nuevo.precio)) }}</div>
+                  <p class="eyebrow">precio sugerido</p>
+                </template>
+              </div>
+            </div>
+            <ul v-if="lineasNuevo().length" class="mt-3 pl-5 text-sm text-ink-2 list-disc space-y-0.5">
+              <li v-for="(l, i) in lineasNuevo()" :key="i">{{ l }}</li>
+            </ul>
+            <p v-else class="mt-3 text-sm text-muted-ink">Sin líneas de alcance.</p>
+          </div>
+          <p v-if="error" class="text-sm text-danger">{{ error }}</p>
+        </div>
+
+        <!-- Footer: botones según el paso -->
+        <div v-if="paso === 'form'" class="flex justify-end gap-2 p-4 border-t border-line">
+          <button @click="cerrarModal" :disabled="revisando" class="h-10 px-4 rounded-md border border-line-strong text-sm text-ink-2 hover:border-accent disabled:opacity-50">
             Cancelar
+          </button>
+          <button
+            @click="revisar"
+            :disabled="revisando"
+            class="h-10 px-5 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent-bright disabled:opacity-50 flex items-center gap-2"
+          >
+            <LoaderCircle v-if="revisando" :size="15" class="animate-spin" /><Sparkles v-else :size="15" /> {{ revisando ? 'Revisando…' : 'Revisar con IA' }}
+          </button>
+        </div>
+        <div v-else class="flex justify-between gap-2 p-4 border-t border-line">
+          <button @click="volverAEditar" :disabled="creando" class="h-10 px-4 rounded-md border border-line-strong text-sm text-ink-2 hover:border-accent disabled:opacity-50 flex items-center gap-1.5">
+            <ArrowLeft :size="15" /> Volver a editar
           </button>
           <button
             @click="crear"
             :disabled="creando"
             class="h-10 px-5 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent-bright disabled:opacity-50 flex items-center gap-2"
           >
-            <LoaderCircle v-if="creando" :size="15" class="animate-spin" /><Check v-else :size="15" /> Crear plantilla
+            <LoaderCircle v-if="creando" :size="15" class="animate-spin" /><Check v-else :size="15" /> Aceptar y crear
           </button>
         </div>
       </div>

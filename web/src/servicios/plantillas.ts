@@ -28,6 +28,21 @@ const callableActualizar = httpsCallable<
   { ok: boolean }
 >(functions, 'actualizarPlantillaCallable');
 
+// Revisión ortográfica con IA antes de crear (nombre, líneas y nombres de subtipo).
+const callableRevisar = httpsCallable<
+  { nombre: string; lineas: string[]; subtipos: string[] },
+  { nombre: string; lineas: string[]; subtipos: string[]; cambios: string[] }
+>(functions, 'revisarOrtografiaPlantillaCallable');
+
+export async function revisarOrtografiaPlantilla(datos: {
+  nombre: string;
+  lineas: string[];
+  subtipos: string[];
+}): Promise<{ nombre: string; lineas: string[]; subtipos: string[]; cambios: string[] }> {
+  const r = await callableRevisar(datos);
+  return r.data;
+}
+
 export async function crearPlantilla(datos: {
   nombre: string;
   precioSugerido?: number | null;

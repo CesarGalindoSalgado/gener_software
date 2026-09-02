@@ -219,6 +219,67 @@ export async function interpretarMensajeAlta(
   }
 }
 
+// Revisión ortográfica de una plantilla ANTES de guardarla. Corrige SOLO ortografía
+// (acentos, mayúsculas, espacios) del nombre, las líneas de alcance y los nombres de
+// subtipo; nunca toca precios, números ni el sentido. Devuelve la versión corregida y
+// un resumen de los cambios, para mostrarlos al usuario y que confirme antes de crear.
+export async function revisarOrtografiaPlantilla(
+  apiKey: string,
+  entrada: { nombre: string; lineas: string[]; subtipos: string[] }
+): Promise<{ nombre: string; lineas: string[]; subtipos: string[]; cambios: string[] }> {
+  const prompt =
+    `Eres un corrector de ortografía en español para plantillas de cotización de Gener Power & Control ` +
+    `(ingeniería eléctrica y electromecánica). Corrige ÚNICAMENTE ortografía, acentuación, ` +
+    `mayúsculas/minúsculas y espacios sobrantes. NO cambies el significado, NO traduzcas, ` +
+    `NO agregues ni elimines conceptos, NO toques números, precios, unidades, códigos ni marcas. ` +
+    `Respeta los términos técnicos.\n\n` +
+    `Datos (JSON): ${JSON.stringify(entrada)}\n\n` +
+    `Devuelve JSON con:\n` +
+    `- nombre: el nombre corregido.\n` +
+    `- lineas: el arreglo de líneas corregidas, en el MISMO orden y la MISMA cantidad que recibiste.\n` +
+    `- subtipos: el arreglo de nombres de subtipo corregidos, mismo orden y cantidad.\n` +
+    `- cambios: arreglo de textos breves describiendo cada corrección (ej. «"mantnimiento" → "mantenimiento"»). Vacío si no hubo correcciones.`;
+  const ai = new GoogleGenAI({ apiKey });
+  const res = await generarConReintento(ai, {
+    model: MODELO,
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          nombre: { type: Type.STRING },
+          lineas: { type: Type.ARRAY, items: { type: Type.STRING } },
+          subtipos: { type: Type.ARRAY, items: { type: Type.STRING } },
+          cambios: { type: Type.ARRAY, items: { type: Type.STRING } },
+        },
+        required: ['nombre', 'lineas', 'subtipos', 'cambios'],
+      },
+    },
+  });
+  try {
+    const j = JSON.parse((res.text ?? '{}').trim());
+    // Salvaguarda: si la IA altera la cantidad de líneas/subtipos, conservamos los
+    // originales para no descuadrar datos (el índice de subtipo debe casar con su precio).
+    const lineas =
+      Array.isArray(j.lineas) && j.lineas.length === entrada.lineas.length
+        ? j.lineas.map((l: unknown) => String(l ?? '').trim())
+        : entrada.lineas;
+    const subtipos =
+      Array.isArray(j.subtipos) && j.subtipos.length === entrada.subtipos.length
+        ? j.subtipos.map((s: unknown) => String(s ?? '').trim())
+        : entrada.subtipos;
+    const nombre = String(j.nombre ?? '').trim() || entrada.nombre;
+    const cambios = Array.isArray(j.cambios)
+      ? j.cambios.map((c: unknown) => String(c ?? '').trim()).filter(Boolean)
+      : [];
+    return { nombre, lineas, subtipos, cambios };
+  } catch {
+    // Si algo falla, devolvemos lo original sin cambios (no bloqueamos el alta).
+    return { nombre: entrada.nombre, lineas: entrada.lineas, subtipos: entrada.subtipos, cambios: [] };
+  }
+}
+
 export async function conversarConPortteoGemini(params: {
   apiKey: string;
   ejecutor: EjecutorHerramientas;
