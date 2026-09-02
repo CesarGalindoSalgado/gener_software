@@ -11,6 +11,10 @@ export interface UsuarioDoc {
   telefono?: string | null;
   telegramChatId?: string | null;
   creadoEn?: Timestamp | null;
+  // Cuentas de soporte (permisos de superAdmin) que NO deben verse ni editarse
+  // desde el portal: solo desde la consola de Firebase. Se filtran de la lista.
+  oculto?: boolean;
+  tipo?: string;
 }
 
 const callableCrear = httpsCallable<
@@ -51,7 +55,10 @@ export function suscribirUsuarios(cb: (items: UsuarioDoc[]) => void): Unsubscrib
   // que no tienen ese campo, así que un usuario sin "nombre" desaparecería de la
   // lista. Traemos todos y ordenamos en el cliente.
   return onSnapshot(collection(db, 'usuarios'), (snap) => {
-    const items = snap.docs.map((d) => ({ correo: d.id, ...(d.data() as Omit<UsuarioDoc, 'correo'>) }));
+    const items = snap.docs
+      .map((d) => ({ correo: d.id, ...(d.data() as Omit<UsuarioDoc, 'correo'>) }))
+      // Las cuentas ocultas (soporte) no se muestran en el portal.
+      .filter((u) => u.oculto !== true);
     items.sort((a, b) => (a.nombre ?? '').localeCompare(b.nombre ?? ''));
     cb(items);
   });
